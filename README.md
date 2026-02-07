@@ -4,7 +4,7 @@ An AI-powered development pipeline that turns Linear issues into GitHub pull req
 
 ![Architecture](./docs/architecture.png)
 
-> [View interactive architecture diagram →](https://squirrelsoft-dev.github.io/linear-claude-agent/)
+> [View interactive architecture diagram →](https://pipeline.squirrel.dev)
 
 ## How It Works
 
@@ -181,7 +181,7 @@ docker compose logs -f token-refresh
 - [x] Docker worker image with Claude Code (SQU-7)
 - [x] Worker spawner module (SQU-9)
 - [x] OAuth token refresh sidecar (SQU-15)
-- [ ] Completion handler with GitHub PR creation (SQU-10)
+- [x] Completion handler with GitHub PR creation (SQU-10)
 - [ ] Task decomposition agent (SQU-11)
 - [ ] End-to-end pipeline testing (SQU-12)
 - [ ] Production deployment (SQU-13)

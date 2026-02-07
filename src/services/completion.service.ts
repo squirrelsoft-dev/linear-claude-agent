@@ -7,7 +7,7 @@ import type { WorkerCallbackPayload } from "../types/worker-callback.js";
 const linearClient = new LinearClient({ apiKey: config.LINEAR_API_KEY });
 
 export async function handleCompleted(payload: WorkerCallbackPayload): Promise<void> {
-  const { owner, repo } = parseRepoUrl(payload.repoUrl || config.REPO_URL);
+  const { owner, repo } = parseRepoUrl(payload.repoUrl);
 
   // Check for existing PR
   let prUrl: string;
