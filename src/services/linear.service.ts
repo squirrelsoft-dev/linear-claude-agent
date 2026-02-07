@@ -3,6 +3,7 @@ import type { LinearWebhookPayload } from "../types/linear-webhook.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { mastra } from "../mastra/index.js";
+import { resolveRepoUrl } from "./repo-label.service.js";
 
 const linearClient = new LinearClient({ apiKey: config.LINEAR_API_KEY });
 
@@ -10,6 +11,33 @@ export async function handleIssueTransitionToInProgress(
   payload: LinearWebhookPayload,
 ): Promise<void> {
   const issueId = payload.data.id;
+
+  // Resolve repo URL from label group
+  const repoUrl = await resolveRepoUrl(issueId);
+  if (!repoUrl) {
+    const groupName = config.REPO_LABEL_GROUP;
+    await linearClient.createComment({
+      issueId,
+      body: `No repo label found — add a label from the **${groupName}** group and move back to In Progress.`,
+    });
+
+    // Move issue back to Todo
+    const issue = await linearClient.issue(issueId);
+    const team = await issue.team;
+    if (team) {
+      const states = await team.states();
+      const todoState = states.nodes.find((s) => s.name === "Todo");
+      if (todoState) {
+        await linearClient.updateIssue(issueId, { stateId: todoState.id });
+      }
+    }
+
+    logger.warn(
+      { issue: payload.data.identifier },
+      "No repo label found, moved back to Todo",
+    );
+    return;
+  }
 
   // Fetch full issue details from Linear API
   const issue = await linearClient.issue(issueId);
