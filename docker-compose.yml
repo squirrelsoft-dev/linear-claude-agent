@@ -29,6 +29,11 @@ services:
       - claude-auth:/root/.claude
     networks:
       - pm-agent-net
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "/usr/local/bin/refresh.sh"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
 
 networks:
   pm-agent-net:

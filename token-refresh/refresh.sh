@@ -41,7 +41,7 @@ refresh_token() {
     if [ "$http_code" = "400" ] || [ "$http_code" = "401" ]; then
       log "ERROR: Refresh token rejected (HTTP $http_code). Manual re-authentication required."
       log "ERROR: Run 'claude' interactively to re-authenticate, then restart the sidecar."
-      exit 1
+      return 1
     fi
 
     attempt=$((attempt + 1))
@@ -111,7 +111,7 @@ check_and_refresh() {
     expires_epoch=$((expires_at / 1000))
   else
     # ISO 8601 string
-    expires_epoch=$(date -d "$expires_at" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%S" "$expires_at" +%s 2>/dev/null || echo 0)
+    expires_epoch=$(date -d "$expires_at" +%s 2>/dev/null || echo 0)
   fi
 
   local remaining=$((expires_epoch - now))
