@@ -11,6 +11,7 @@ services:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - claude-auth:/root/.claude
     networks:
       - pm-agent-net
     healthcheck:
@@ -20,7 +21,19 @@ services:
       start_period: 10s
       retries: 3
 
+  token-refresh:
+    build: ./token-refresh
+    container_name: token-refresh
+    restart: unless-stopped
+    volumes:
+      - claude-auth:/root/.claude
+    networks:
+      - pm-agent-net
+
 networks:
   pm-agent-net:
     name: pm-agent-net
     driver: bridge
+
+volumes:
+  claude-auth:
