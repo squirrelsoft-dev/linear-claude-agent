@@ -10,7 +10,7 @@ TASK_PROMPT="${TASK_PROMPT:-${TASK_DESCRIPTION:-}}"
 CALLBACK_SENT=0
 CLAUDE_PID=""
 WATCHDOG_PID=""
-STATUS="failure"
+STATUS="failed"
 ERROR_MSG=""
 
 # ─── Validate required env vars ──────────────────────────────────────────────
@@ -47,7 +47,10 @@ send_callback() {
         --arg branch "$BRANCH_NAME" \
         --arg error "$cb_error" \
         --arg issueId "${LINEAR_ISSUE_ID:-}" \
-        '{status: $status, branch: $branch, error: $error, issueId: $issueId}')
+        --arg issueIdentifier "${ISSUE_IDENTIFIER:-}" \
+        --arg issueTitle "${ISSUE_TITLE:-}" \
+        --arg repoUrl "${REPO_URL:-}" \
+        '{status: $status, branch: $branch, error: $error, issueId: $issueId, issueIdentifier: $issueIdentifier, issueTitle: $issueTitle, repoUrl: $repoUrl}')
 
     echo "Sending callback: $cb_status"
     local attempt
@@ -86,7 +89,7 @@ cleanup() {
 
     # Detect timeout from signal-based exit codes
     if [ "$exit_code" -eq 143 ] || [ "$exit_code" -eq 137 ]; then
-        STATUS="timeout"
+        STATUS="failed"
         ERROR_MSG="Task timed out after ${TIMEOUT}s"
     fi
 
@@ -94,8 +97,8 @@ cleanup() {
 }
 
 trap 'cleanup $?' EXIT
-trap 'STATUS="failure"; ERROR_MSG="Received SIGTERM"; exit 143' TERM
-trap 'STATUS="failure"; ERROR_MSG="Received SIGINT"; exit 130' INT
+trap 'STATUS="failed"; ERROR_MSG="Received SIGTERM"; exit 143' TERM
+trap 'STATUS="failed"; ERROR_MSG="Received SIGINT"; exit 130' INT
 
 # ─── SSH setup ───────────────────────────────────────────────────────────────
 # Use GIT_SSH_COMMAND to handle read-only .ssh mounts cleanly
@@ -144,7 +147,7 @@ if ! wait "$CLAUDE_PID"; then
     CLAUDE_EXIT=$?
     # Check if this was a timeout-induced kill
     if [ "$CLAUDE_EXIT" -eq 143 ] || [ "$CLAUDE_EXIT" -eq 137 ]; then
-        STATUS="timeout"
+        STATUS="failed"
         ERROR_MSG="Claude process timed out after ${TIMEOUT}s"
         exit "$CLAUDE_EXIT"
     fi
@@ -177,6 +180,6 @@ if ! push_output=$(git push -u origin "$BRANCH_NAME" 2>&1); then
 fi
 
 # ─── Success ─────────────────────────────────────────────────────────────────
-STATUS="success"
+STATUS="completed"
 ERROR_MSG=""
 echo "=== Worker completed successfully ==="

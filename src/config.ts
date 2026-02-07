@@ -5,6 +5,7 @@ const envSchema = z.object({
   LINEAR_API_KEY: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().min(1),
   REPO_URL: z.string().min(1),
+  GITHUB_TOKEN: z.string().min(1),
   AGENT_KEY: z.string().min(1),
   PORT: z.coerce.number().default(3000),
   WORKER_IMAGE: z.string().default("claude-worker:latest"),
