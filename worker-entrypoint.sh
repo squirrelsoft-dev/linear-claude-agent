@@ -108,16 +108,16 @@ fi
 
 # ─── Clone repo ─────────────────────────────────────────────────────────────
 echo "Cloning $REPO_URL ..."
-if ! git clone "$REPO_URL" /workspace/repo 2>&1; then
-    ERROR_MSG="Failed to clone repository"
+if ! clone_output=$(git clone "$REPO_URL" /workspace/repo 2>&1); then
+    ERROR_MSG="Failed to clone repository: ${clone_output}"
     exit 1
 fi
 cd /workspace/repo
 
 # ─── Create branch ──────────────────────────────────────────────────────────
 echo "Creating branch: $BRANCH_NAME"
-if ! git checkout -b "$BRANCH_NAME" 2>&1; then
-    ERROR_MSG="Failed to create branch $BRANCH_NAME"
+if ! checkout_output=$(git checkout -b "$BRANCH_NAME" 2>&1); then
+    ERROR_MSG="Failed to create branch '$BRANCH_NAME': ${checkout_output}"
     exit 1
 fi
 
@@ -170,8 +170,8 @@ Issue: ${LINEAR_ISSUE_ID:-none}"
 
 # ─── Push branch ────────────────────────────────────────────────────────────
 echo "Pushing branch $BRANCH_NAME ..."
-if ! git push -u origin "$BRANCH_NAME" 2>&1; then
-    ERROR_MSG="Failed to push branch"
+if ! push_output=$(git push -u origin "$BRANCH_NAME" 2>&1); then
+    ERROR_MSG="Failed to push branch: ${push_output}"
     exit 1
 fi
 

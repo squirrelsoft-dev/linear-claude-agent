@@ -3,19 +3,16 @@ FROM ubuntu:24.04
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies + Node.js 22 LTS in a single layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     openssh-client \
     jq \
     ca-certificates \
     gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Node.js 22 LTS via NodeSource
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Claude Code CLI
