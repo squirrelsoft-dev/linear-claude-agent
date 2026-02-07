@@ -40,7 +40,10 @@ export async function spawnWorkerContainer(
     ],
     HostConfig: {
       NetworkMode: config.WORKER_NETWORK,
-      Binds: [`${config.HOST_SSH_PATH}:/root/.ssh:ro`],
+      Binds: [
+        `${config.HOST_SSH_PATH}:/root/.ssh:ro`,
+        `${config.HOST_CLAUDE_AUTH_PATH}:/root/.claude:ro`,
+      ],
       AutoRemove: true,
     },
   });

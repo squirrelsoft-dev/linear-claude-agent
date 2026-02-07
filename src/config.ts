@@ -12,6 +12,7 @@ const envSchema = z.object({
   WORKER_MAX_TURNS: z.coerce.number().default(50),
   CALLBACK_BASE_URL: z.string().default("http://pm-agent:3000"),
   HOST_SSH_PATH: z.string().default("/root/.ssh"),
+  HOST_CLAUDE_AUTH_PATH: z.string().default("claude-auth"),
   PM_AGENT_PROVIDER: z.enum(["anthropic", "openai"]).default("anthropic"),
   PM_AGENT_MODEL: z.string().default("claude-sonnet-4-20250514"),
   PM_AGENT_API_KEY: z.string().optional(),
