@@ -7,6 +7,9 @@ import {
 } from "./middleware/verify-linear-signature.js";
 import { linearWebhookRouter } from "./routes/linear-webhook.js";
 import { workerCompleteRouter } from "./routes/worker-complete.js";
+import { workerSpawner } from "./services/worker-spawner.js";
+
+await workerSpawner.initialize();
 
 const app = express();
 

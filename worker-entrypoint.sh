@@ -54,6 +54,7 @@ send_callback() {
     for attempt in 1 2 3; do
         if curl -sf -X POST "$CALLBACK_URL" \
             -H "Content-Type: application/json" \
+            -H "x-agent-key: ${AGENT_KEY:-}" \
             -d "$payload" \
             --max-time 10; then
             echo "Callback sent successfully."

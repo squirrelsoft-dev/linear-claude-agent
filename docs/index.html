@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM Agent Pipeline — Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface-2: #1a2235;
+    --border: #1e2d45;
+    --text: #e2e8f0;
+    --text-dim: #8494a7;
+    --accent-blue: #3b82f6;
+    --accent-purple: #8b5cf6;
+    --accent-green: #10b981;
+    --accent-orange: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-cyan: #06b6d4;
+    --accent-pink: #ec4899;
+    --linear: #5e6ad2;
+    --github: #f0f6fc;
+    --docker: #2496ed;
+    --claude: #d4a27f;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  header h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  header .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+  }
+
+  .legend-line {
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .legend-line.coding { background: var(--accent-green); }
+  .legend-line.triage { background: var(--accent-orange); }
+  .legend-line.infra { background: var(--accent-blue); opacity: 0.4; }
+
+  /* SVG Canvas */
+  .diagram {
+    position: relative;
+    width: 100%;
+  }
+
+  svg.connections {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Grid layout */
+  .grid {
+    display: grid;
+    grid-template-columns: 260px 1fr 260px;
+    grid-template-rows: auto;
+    gap: 24px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Node base */
+  .node {
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  .node-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+
+  .node-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .node-desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .node-badge {
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Specific node styles */
+  .node-linear {
+    background: linear-gradient(135deg, rgba(94,106,210,0.15), rgba(94,106,210,0.05));
+    border: 1px solid rgba(94,106,210,0.3);
+  }
+  .node-linear .node-label { color: var(--linear); }
+  .node-linear .node-badge { background: var(--linear); color: white; }
+
+  .node-github {
+    background: linear-gradient(135deg, rgba(240,246,252,0.08), rgba(240,246,252,0.02));
+    border: 1px solid rgba(240,246,252,0.15);
+  }
+  .node-github .node-label { color: var(--github); }
+  .node-github .node-badge { background: rgba(240,246,252,0.15); color: var(--github); }
+
+  .node-pm {
+    background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.1));
+    border: 1px solid rgba(139,92,246,0.3);
+    grid-column: 2;
+  }
+  .node-pm .node-label { color: var(--accent-purple); }
+
+  .node-webhook {
+    background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(59,130,246,0.04));
+    border: 1px solid rgba(59,130,246,0.25);
+  }
+  .node-webhook .node-label { color: var(--accent-blue); }
+  .node-webhook .node-badge { background: var(--accent-blue); color: white; }
+
+  .node-spawner {
+    background: linear-gradient(135deg, rgba(6,182,212,0.12), rgba(6,182,212,0.04));
+    border: 1px solid rgba(6,182,212,0.25);
+  }
+  .node-spawner .node-label { color: var(--accent-cyan); }
+
+  .node-worker-coding {
+    background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.04));
+    border: 1px solid rgba(16,185,129,0.3);
+  }
+  .node-worker-coding .node-label { color: var(--accent-green); }
+  .node-worker-coding .node-badge { background: var(--accent-green); color: #0a0e17; }
+
+  .node-worker-triage {
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.04));
+    border: 1px solid rgba(245,158,11,0.3);
+  }
+  .node-worker-triage .node-label { color: var(--accent-orange); }
+  .node-worker-triage .node-badge { background: var(--accent-orange); color: #0a0e17; }
+
+  .node-completion {
+    background: linear-gradient(135deg, rgba(236,72,153,0.12), rgba(236,72,153,0.04));
+    border: 1px solid rgba(236,72,153,0.25);
+  }
+  .node-completion .node-label { color: var(--accent-pink); }
+
+  .node-sidecar {
+    background: linear-gradient(135deg, rgba(212,162,127,0.12), rgba(212,162,127,0.04));
+    border: 1px solid rgba(212,162,127,0.25);
+  }
+  .node-sidecar .node-label { color: var(--claude); }
+
+  .node-you {
+    background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .node-you .node-label { color: rgba(255,255,255,0.6); }
+
+  /* Flow sections */
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    margin: 32px 0 16px;
+    padding-left: 4px;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Flow arrows */
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    align-self: center;
+  }
+
+  /* Detail lists inside nodes */
+  .node-details {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .detail-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Connector lines between sections */
+  .connector {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4px 0;
+  }
+
+  .connector-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+  }
+
+  .connector-line .arrow {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .connector-line .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    opacity: 0.7;
+  }
+
+  /* Two-column worker area */
+  .workers-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .worker-divider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    gap: 8px;
+  }
+
+  .worker-divider::before,
+  .worker-divider::after {
+    content: '';
+    width: 1px;
+    flex: 1;
+    background: var(--border);
+  }
+
+  /* Infra sidebar */
+  .infra-sidebar {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .node-infra {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .node-infra .node-label {
+    color: var(--text-dim);
+    font-size: 0.6rem;
+  }
+  .node-infra .node-title {
+    font-size: 0.95rem;
+  }
+
+  /* Full-width nodes */
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .center-col {
+    grid-column: 2;
+  }
+
+  /* Three column row */
+  .three-col {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+  }
+
+  /* Watermark */
+  .watermark {
+    text-align: center;
+    margin-top: 48px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.15);
+    letter-spacing: 0.1em;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .center-col { grid-column: 1; }
+    .workers-row { grid-template-columns: 1fr; }
+    .worker-divider { display: none; }
+    .infra-sidebar { grid-template-columns: 1fr; }
+    .three-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>PM Agent Pipeline</h1>
+    <div class="subtitle">Linear → Mastra PM Agent → Claude Code Workers → GitHub</div>
+    <a href="https://github.com/squirrelsoft-dev/linear-claude-agent" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 6px 16px; border-radius: 8px; border: 1px solid rgba(240,246,252,0.15); background: rgba(240,246,252,0.05); color: var(--text-dim); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; transition: all 0.2s ease;" onmouseover="this.style.borderColor='rgba(240,246,252,0.35)';this.style.color='var(--text)';this.style.background='rgba(240,246,252,0.08)'" onmouseout="this.style.borderColor='rgba(240,246,252,0.15)';this.style.color='var(--text-dim)';this.style.background='rgba(240,246,252,0.05)'">
+      <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      squirrelsoft-dev/linear-claude-agent
+    </a>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-line coding"></div> Coding flow</div>
+    <div class="legend-item"><div class="legend-line triage"></div> Triage flow (SQU-16)</div>
+    <div class="legend-item"><div class="legend-line infra"></div> Infrastructure</div>
+  </div>
+
+  <div class="grid">
+
+    <!-- === TRIGGER LAYER === -->
+    <div class="section-title">① Triggers</div>
+
+    <div class="node node-you" style="grid-column: 2;">
+      <div class="node-label">Human</div>
+      <div class="node-title">👤 You</div>
+      <div class="node-desc">Create issues in Linear from phone, desktop, or via Claude + Linear MCP. Review & merge PRs.</div>
+      <div class="node-details">
+        <span class="detail-tag">claude mobile</span>
+        <span class="detail-tag">linear MCP</span>
+        <span class="detail-tag">PR review</span>
+      </div>
+    </div>
+
+    <!-- === WEBHOOK LAYER === -->
+    <div class="connector">
+      <div class="connector-line">
+        <span class="arrow">↓</span>
+        <span class="label">creates / moves issue</span>
+      </div>
+    </div>
+
+    <div class="node node-linear" style="grid-column: 1;">
+      <div class="node-badge">SQU-6</div>
+      <div class="node-label">Task Board</div>
+      <div class="node-title">📋 Linear</div>
+      <div class="node-desc">Issues, status tracking, comments. Native two-way sync with GitHub.</div>
+      <div class="node-details">
+        <span class="detail-tag">webhooks</span>
+        <span class="detail-tag">API</span>
+        <span class="detail-tag">free tier</span>
+      </div>
+    </div>
+
+    <div class="node node-webhook" style="grid-column: 2;">
+      <div class="node-badge">SQU-8</div>
+      <div class="node-label">Entry Point</div>
+      <div class="node-title">🔗 Webhook Receiver</div>
+      <div class="node-desc">Express server. HMAC-SHA256 signature verification. Routes events by type.</div>
+      <div class="node-details">
+        <span class="detail-tag">POST /api/linear/webhook</span>
+        <span class="detail-tag">replay protection</span>
+        <span class="detail-tag">Zod validation</span>
+      </div>
+    </div>
+
+    <div class="node node-github" style="grid-column: 3;">
+      <div class="node-badge">SQU-6</div>
+      <div class="node-label">Source Code</div>
+      <div class="node-title">🐙 GitHub</div>
+      <div class="node-desc">Repos, branches, PRs. Workers push branches. PM agent creates PRs via API.</div>
+      <div class="node-details">
+        <span class="detail-tag">native Linear sync</span>
+        <span class="detail-tag">Octokit</span>
+      </div>
+    </div>
+
+    <!-- === PM AGENT LAYER === -->
+    <div class="connector">
+      <div class="connector-line">
+        <span class="arrow">↓</span>
+        <span class="label">issue created → triage · status "In Progress" → code</span>
+      </div>
+    </div>
+
+    <div class="node node-pm full-width" style="grid-column: 1 / -1;">
+      <div class="node-label">Brain · Mastra Agent · claude-sonnet-4-20250514</div>
+      <div class="node-title">🧠 PM Agent</div>
+      <div class="node-desc" style="max-width: 800px;">
+        Long-running Mastra agent hosted in Coolify. Receives webhooks, decides action, spawns workers, processes callbacks.
+        Creates GitHub PRs, updates Linear issues, posts triage findings as comments.
+      </div>
+      <div class="node-details">
+        <span class="detail-tag">SQU-9 spawner</span>
+        <span class="detail-tag">SQU-10 completion</span>
+        <span class="detail-tag">SQU-11 decomposition</span>
+        <span class="detail-tag">fetchIssueTool</span>
+        <span class="detail-tag">spawnWorkerTool</span>
+        <span class="detail-tag">Dockerode</span>
+        <span class="detail-tag">pm-agent-net</span>
+      </div>
+    </div>
+
+    <!-- === WORKER LAYER === -->
+    <div class="connector">
+      <div class="connector-line">
+        <span class="arrow">↓</span>
+        <span class="label">spawns ephemeral Docker container</span>
+      </div>
+    </div>
+
+    <div class="workers-row">
+      <!-- Coding Worker -->
+      <div class="node node-worker-coding">
+        <div class="node-badge">SQU-7</div>
+        <div class="node-label">Ephemeral Container · Claude Code CLI</div>
+        <div class="node-title">⚡ Coding Worker</div>
+        <div class="node-desc">
+          Clone → branch → <code>claude -p</code> → commit → push → callback.
+          Full read/write. Creates branches and pushes code.
+        </div>
+        <div class="node-details">
+          <span class="detail-tag">Ubuntu 24.04</span>
+          <span class="detail-tag">Node 22</span>
+          <span class="detail-tag">SSH keys (ro)</span>
+          <span class="detail-tag">claude-auth vol</span>
+          <span class="detail-tag">30min timeout</span>
+          <span class="detail-tag">50 max turns</span>
+        </div>
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(16,185,129,0.15);">
+          <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-bottom: 4px;">On Complete:</div>
+          <div class="node-desc">
+            Push branch → callback → PM agent creates PR via GitHub API → posts PR link to Linear → status → "In Review"
+          </div>
+        </div>
+        <div style="margin-top: 8px;">
+          <div style="font-size: 0.75rem; color: var(--accent-red); font-weight: 600; margin-bottom: 4px;">On Failure:</div>
+          <div class="node-desc">
+            Callback with error → PM agent posts error to Linear → applies "agent-failed" label
+          </div>
+        </div>
+      </div>
+
+      <div class="worker-divider">or</div>
+
+      <!-- Triage Worker -->
+      <div class="node node-worker-triage">
+        <div class="node-badge">SQU-16</div>
+        <div class="node-label">Ephemeral Container · Read-Only Analysis</div>
+        <div class="node-title">🔍 Triage Worker</div>
+        <div class="node-desc">
+          Clone → read CLAUDE.md → analyze codebase → callback with findings.
+          No branching, no commits, no pushes.
+        </div>
+        <div class="node-details">
+          <span class="detail-tag">same image</span>
+          <span class="detail-tag">analysis prompt</span>
+          <span class="detail-tag">no SSH needed</span>
+          <span class="detail-tag">claude-auth vol</span>
+          <span class="detail-tag">fewer turns</span>
+          <span class="detail-tag">faster model?</span>
+        </div>
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(245,158,11,0.15);">
+          <div style="font-size: 0.75rem; color: var(--accent-orange); font-weight: 600; margin-bottom: 4px;">On Complete:</div>
+          <div class="node-desc">
+            Callback with findings → PM agent posts structured analysis comment to Linear → sets estimate → flags unclear issues with "needs-refinement" label
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === CALLBACK LAYER === -->
+    <div class="connector">
+      <div class="connector-line">
+        <span class="arrow">↑↓</span>
+        <span class="label">POST /api/worker/complete · x-agent-key auth · pm-agent-net</span>
+      </div>
+    </div>
+
+    <!-- === INFRASTRUCTURE === -->
+    <div class="section-title">② Infrastructure</div>
+
+    <div class="infra-sidebar">
+      <div class="node node-infra">
+        <div class="node-label">Sidecar · SQU-15</div>
+        <div class="node-title">🔑 Token Refresh</div>
+        <div class="node-desc">Alpine container. Monitors OAuth credentials on shared volume. Refreshes tokens every 5 min before expiry. Atomic writes + flock.</div>
+        <div class="node-details">
+          <span class="detail-tag">claude-auth volume</span>
+          <span class="detail-tag">30min buffer</span>
+          <span class="detail-tag">3x retry</span>
+        </div>
+      </div>
+
+      <div class="node node-infra">
+        <div class="node-label">Network · Docker</div>
+        <div class="node-title">🌐 pm-agent-net</div>
+        <div class="node-desc">Docker bridge network. PM agent reachable as <code>http://pm-agent:3000</code>. Workers callback over internal hostname. No external exposure.</div>
+        <div class="node-details">
+          <span class="detail-tag">container isolation</span>
+          <span class="detail-tag">AGENT_KEY auth</span>
+        </div>
+      </div>
+
+      <div class="node node-infra">
+        <div class="node-label">Hosting · SQU-13</div>
+        <div class="node-title">☁️ Coolify + Traefik</div>
+        <div class="node-desc">Docker Compose deployment. Traefik handles HTTPS termination and routes domain to PM agent. Docker socket mounted for spawning.</div>
+        <div class="node-details">
+          <span class="detail-tag">docker.sock</span>
+          <span class="detail-tag">HTTPS</span>
+          <span class="detail-tag">healthchecks</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- === DATA FLOW SUMMARY === -->
+    <div class="section-title">③ End-to-End Flows</div>
+
+    <div class="full-width" style="grid-column: 1 / -1;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+
+        <div style="background: linear-gradient(135deg, rgba(16,185,129,0.08), transparent); border: 1px solid rgba(16,185,129,0.15); border-radius: 12px; padding: 20px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-green); margin-bottom: 10px;">Coding Pipeline</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); line-height: 2; font-family: 'JetBrains Mono', monospace;">
+            <span style="color: var(--text);">①</span> You move issue → "In Progress"<br>
+            <span style="color: var(--text);">②</span> Linear webhook → PM agent<br>
+            <span style="color: var(--text);">③</span> PM agent spawns coding worker<br>
+            <span style="color: var(--text);">④</span> Worker: clone → branch → claude -p → push<br>
+            <span style="color: var(--text);">⑤</span> Worker callbacks with success + branch<br>
+            <span style="color: var(--text);">⑥</span> PM agent creates PR via GitHub API<br>
+            <span style="color: var(--text);">⑦</span> PM agent posts PR link to Linear<br>
+            <span style="color: var(--text);">⑧</span> Linear status → "In Review"<br>
+            <span style="color: var(--text);">⑨</span> You review & merge
+          </div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, rgba(245,158,11,0.08), transparent); border: 1px solid rgba(245,158,11,0.15); border-radius: 12px; padding: 20px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-orange); margin-bottom: 10px;">Triage Pipeline (SQU-16 · Future)</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); line-height: 2; font-family: 'JetBrains Mono', monospace;">
+            <span style="color: var(--text);">①</span> You create issue in Linear<br>
+            <span style="color: var(--text);">②</span> Linear webhook (created) → PM agent<br>
+            <span style="color: var(--text);">③</span> PM agent spawns triage worker<br>
+            <span style="color: var(--text);">④</span> Worker: clone → read CLAUDE.md → analyze<br>
+            <span style="color: var(--text);">⑤</span> Worker callbacks with findings<br>
+            <span style="color: var(--text);">⑥</span> PM agent posts analysis to Linear<br>
+            <span style="color: var(--text);">⑦</span> Auto-sets estimate & priority<br>
+            <span style="color: var(--text);">⑧</span> Flags unclear issues<br>
+            <span style="color: var(--text);">⑨</span> Issue ready for "In Progress"
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- === SHARED VOLUMES === -->
+    <div class="section-title">④ Shared Resources</div>
+
+    <div class="three-col">
+      <div style="background: rgba(212,162,127,0.06); border: 1px solid rgba(212,162,127,0.15); border-radius: 10px; padding: 16px;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--claude); margin-bottom: 6px;">Docker Volume</div>
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 4px;">claude-auth</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.5;">
+          OAuth credentials shared between PM agent, token refresh sidecar, and all workers. Sidecar writes, workers read.
+        </div>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 6px;">Host Bind Mount</div>
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 4px;">SSH Keys (read-only)</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.5;">
+          Host SSH keys mounted into coding workers only. Enables git push to GitHub over SSH.
+        </div>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 6px;">Environment</div>
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 4px;">AGENT_KEY</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.5;">
+          Shared secret passed to workers at spawn. Required in x-agent-key header on all callbacks.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="watermark">SquirrelSoft LLC · pm agent pipeline · v1.0</div>
+</div>
+</body>
+</html>
