@@ -4,6 +4,7 @@ import { workerCallbackPayloadSchema } from "../types/worker-callback.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { workerSpawner } from "../services/worker-spawner.js";
+import { handleCompleted, handleFailed } from "../services/completion.service.js";
 
 export const workerCompleteRouter = Router();
 
@@ -31,8 +32,15 @@ workerCompleteRouter.post("/", (req, res) => {
     "Worker callback received",
   );
 
+  // Respond immediately so the worker isn't blocked
+  res.status(200).json({ received: true });
+
+  // Clear worker tracking
   workerSpawner.handleWorkerComplete(payload.issueId);
 
-  // Stub for SQU-10
-  res.status(200).json({ received: true });
+  // Fire-and-forget: dispatch based on status
+  const handler = payload.status === "completed" ? handleCompleted : handleFailed;
+  handler(payload).catch((err) => {
+    logger.error({ err, issueId: payload.issueId, status: payload.status }, "Completion handler error");
+  });
 });

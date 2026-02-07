@@ -6,6 +6,7 @@ import {
   spawnWorkerContainer,
   stopContainer,
 } from "./docker.service.js";
+import { handleTimeout } from "./completion.service.js";
 
 export class WorkerAlreadyRunningError extends Error {
   constructor(issueId: string) {
@@ -24,6 +25,7 @@ export class MaxConcurrencyError extends Error {
 interface TrackedWorker {
   containerId: string;
   branchName: string;
+  identifier: string;
   container: Dockerode.Container;
   timeoutId: ReturnType<typeof setTimeout>;
 }
@@ -92,6 +94,7 @@ class WorkerSpawner {
     this.workers.set(request.issueId, {
       containerId: container.id,
       branchName,
+      identifier: request.identifier,
       container,
       timeoutId,
     });
@@ -139,6 +142,10 @@ class WorkerSpawner {
 
     this.workers.delete(issueId);
     await stopContainer(tracked.container);
+
+    handleTimeout(issueId, tracked.identifier).catch((err) => {
+      logger.error({ err, issueId }, "Failed to handle worker timeout");
+    });
   }
 }
 
