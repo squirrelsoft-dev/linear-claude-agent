@@ -2,6 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import { anthropic } from "@ai-sdk/anthropic";
 import { fetchIssueTool } from "../tools/fetch-issue.js";
 import { spawnWorkerTool } from "../tools/spawn-worker.js";
+import { config } from "../../config.js";
 
 export const pmAgent = new Agent({
   id: "pm-agent",
@@ -16,6 +17,6 @@ export const pmAgent = new Agent({
     "4. Pass the issue ID, identifier, title, a clear description of what to implement, and the branch name.",
     "Always spawn exactly one worker per issue.",
   ],
-  model: anthropic("claude-sonnet-4-20250514"),
+  model: anthropic(config.PM_AGENT_MODEL),
   tools: { fetchIssueTool, spawnWorkerTool },
 });

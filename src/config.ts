@@ -12,6 +12,7 @@ const envSchema = z.object({
   WORKER_MAX_TURNS: z.coerce.number().default(50),
   CALLBACK_BASE_URL: z.string().default("http://pm-agent:3000"),
   HOST_SSH_PATH: z.string().default("/root/.ssh"),
+  PM_AGENT_MODEL: z.string().default("claude-sonnet-4-20250514"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),

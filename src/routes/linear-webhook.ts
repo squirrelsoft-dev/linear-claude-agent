@@ -1,15 +1,21 @@
 import { Router } from "express";
-import type { LinearWebhookPayload } from "../types/linear-webhook.js";
+import { linearWebhookPayloadSchema } from "../types/linear-webhook.js";
 import { handleIssueTransitionToInProgress } from "../services/linear.service.js";
 import { logger } from "../utils/logger.js";
 
 export const linearWebhookRouter = Router();
 
 linearWebhookRouter.post("/", (req, res) => {
-  const payload = req.body as LinearWebhookPayload;
-
   // Respond immediately so Linear doesn't retry
   res.status(200).json({ received: true });
+
+  const parsed = linearWebhookPayloadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    logger.warn({ error: parsed.error.format() }, "Invalid webhook payload");
+    return;
+  }
+
+  const payload = parsed.data;
 
   // Filter: only Issue updates where state changed to "In Progress"
   if (payload.type !== "Issue") {

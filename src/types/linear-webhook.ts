@@ -1,37 +1,47 @@
-export interface LinearWebhookPayload {
-  action: "create" | "update" | "remove";
-  type: "Issue" | "Comment" | "Project" | string;
-  createdAt: string;
-  webhookTimestamp: number;
-  data: {
-    id: string;
-    identifier: string;
-    title: string;
-    description?: string;
-    state: {
-      id: string;
-      name: string;
-      type: string;
-    };
-    team: {
-      id: string;
-      key: string;
-      name: string;
-    };
-    assignee?: {
-      id: string;
-      name: string;
-    };
-    labels: Array<{
-      id: string;
-      name: string;
-    }>;
-    priority: number;
-    url: string;
-  };
-  updatedFrom?: {
-    stateId?: string;
-    updatedAt?: string;
-    [key: string]: unknown;
-  };
-}
+import { z } from "zod";
+
+export const linearWebhookPayloadSchema = z.object({
+  action: z.enum(["create", "update", "remove"]),
+  type: z.string(),
+  createdAt: z.string(),
+  webhookTimestamp: z.number(),
+  data: z.object({
+    id: z.string(),
+    identifier: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    state: z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.string(),
+    }),
+    team: z.object({
+      id: z.string(),
+      key: z.string(),
+      name: z.string(),
+    }),
+    assignee: z
+      .object({
+        id: z.string(),
+        name: z.string(),
+      })
+      .optional(),
+    labels: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+      }),
+    ),
+    priority: z.number(),
+    url: z.string(),
+  }),
+  updatedFrom: z
+    .object({
+      stateId: z.string().optional(),
+      updatedAt: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
+});
+
+export type LinearWebhookPayload = z.infer<typeof linearWebhookPayloadSchema>;
