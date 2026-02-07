@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
+    "@ai-sdk/openai": "^3.0.26",
     "@linear/sdk": "^73.0.0",
     "@mastra/core": "^1.2.0",
     "dockerode": "^4.0.0",

@@ -1,8 +1,21 @@
 import { Agent } from "@mastra/core/agent";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import { fetchIssueTool } from "../tools/fetch-issue.js";
 import { spawnWorkerTool } from "../tools/spawn-worker.js";
 import { config } from "../../config.js";
+
+function createModel() {
+  const providerOpts = {
+    ...(config.PM_AGENT_API_KEY && { apiKey: config.PM_AGENT_API_KEY }),
+    ...(config.PM_AGENT_API_URL && { baseURL: config.PM_AGENT_API_URL }),
+  };
+
+  if (config.PM_AGENT_PROVIDER === "openai") {
+    return createOpenAI(providerOpts)(config.PM_AGENT_MODEL);
+  }
+  return createAnthropic(providerOpts)(config.PM_AGENT_MODEL);
+}
 
 export const pmAgent = new Agent({
   id: "pm-agent",
@@ -17,6 +30,6 @@ export const pmAgent = new Agent({
     "4. Pass the issue ID, identifier, title, a clear description of what to implement, and the branch name.",
     "Always spawn exactly one worker per issue.",
   ],
-  model: anthropic(config.PM_AGENT_MODEL),
+  model: createModel(),
   tools: { fetchIssueTool, spawnWorkerTool },
 });
