@@ -1,0 +1,6 @@
+.git
+*.md
+test-worker.sh
+.env*
+node_modules
+.claude
