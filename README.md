@@ -1,4 +1,29 @@
-# Claude Worker
+# Linear Claude Worker
+
+Linear (task board) ←→ GitHub (two-way sync)
+       │
+       │ webhook (issue moved to "In Progress")
+       ▼
+┌─────────────────────┐
+│   Mastra PM Agent    │  (long-running on Linux server)
+│                      │
+│  - Receives webhooks │
+│  - Decomposes tasks  │
+│  - Spawns workers    │
+│  - Monitors progress │
+│  - Updates Linear    │
+└─────────┬───────────┘
+          │ spawns
+          ▼
+┌─────────────────────┐
+│  Docker Container    │  (ephemeral, per-task)
+│                      │
+│  - Claude Code CLI   │
+│  - Claude Max auth   │
+│  - Repo mounted      │
+│  - Branch isolated   │
+│  - Exits on complete │
+└─────────────────────┘
 
 Ephemeral Docker container that runs Claude Code against a git repository. Clones a repo, creates a branch, executes a task prompt via `claude -p`, commits the result, and pushes.
 
