@@ -392,14 +392,49 @@
     letter-spacing: 0.1em;
   }
 
-  /* Responsive */
+  /* Responsive — tablet */
   @media (max-width: 900px) {
+    .container { padding: 24px 16px; }
+    header h1 { font-size: 1.8rem; }
     .grid { grid-template-columns: 1fr; }
-    .center-col { grid-column: 1; }
+    /* Override inline grid-column on all nodes */
+    .grid > .node,
+    .grid > .connector,
+    .grid > .section-title,
+    .grid > .full-width,
+    .grid > .workers-row,
+    .grid > .infra-sidebar,
+    .grid > .three-col,
+    .grid > [style] { grid-column: 1 !important; }
+    .node-pm { grid-column: 1 !important; }
+    .center-col { grid-column: 1 !important; }
     .workers-row { grid-template-columns: 1fr; }
     .worker-divider { display: none; }
     .infra-sidebar { grid-template-columns: 1fr; }
     .three-col { grid-template-columns: 1fr; }
+    /* Collapse the end-to-end flows two-column layout */
+    .full-width > div[style*="grid-template-columns"] {
+      grid-template-columns: 1fr !important;
+    }
+    .legend { gap: 12px; }
+  }
+
+  /* Responsive — phone */
+  @media (max-width: 480px) {
+    .container { padding: 16px 12px; }
+    header { margin-bottom: 28px; }
+    header h1 { font-size: 1.4rem; }
+    header .subtitle { font-size: 0.75rem; }
+    .legend { gap: 8px; margin-bottom: 24px; }
+    .legend-item { font-size: 0.7rem; }
+    .node { padding: 14px; }
+    .node-title { font-size: 0.95rem; }
+    .node-desc { font-size: 0.75rem; }
+    .detail-tag { font-size: 0.55rem; padding: 2px 6px; }
+    .section-title { font-size: 0.6rem; margin: 20px 0 12px; }
+    .watermark { margin-top: 32px; }
+    /* Shrink the GitHub link in header */
+    header a[href*="github"] { font-size: 0.65rem; padding: 4px 10px; }
   }
 </style>
 </head>
