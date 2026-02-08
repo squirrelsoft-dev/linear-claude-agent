@@ -85,7 +85,6 @@ export async function spawnWorkerContainer(
       `BRANCH_NAME=${opts.branchName}`,
       `BASE_BRANCH=${opts.baseBranch}`,
       `REPO_URL=${opts.repoUrl}`,
-      `ANTHROPIC_API_KEY=${opts.anthropicApiKey}`,
       `LINEAR_API_KEY=${opts.linearApiKey}`,
       `CALLBACK_URL=${opts.callbackUrl}`,
       `AGENT_KEY=${opts.agentKey}`,
