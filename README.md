@@ -77,6 +77,38 @@ Initial authentication requires running `claude` interactively once to complete 
     └── architecture.png       # Architecture diagram
 ```
 
+## Roadmap
+
+### Completed
+
+- [x] Webhook receiver with HMAC verification (SQU-8)
+- [x] Docker worker image with Claude Code (SQU-7)
+- [x] Worker spawner module (SQU-9)
+- [x] OAuth token refresh sidecar (SQU-15)
+- [x] Completion handler with GitHub PR creation (SQU-10)
+- [x] Multi-repo support via label-based repo mapping (SQU-17)
+
+### In Progress
+
+- [ ] Worker mode system — triage, respond, implement, review (SQU-21)
+- [ ] Create AI workflow label scheme (SQU-26)
+- [ ] Cloudflare Tunnel integration — zero-config deployment with docker compose (SQU-27)
+
+### Up Next
+
+- [ ] Triage workflow — auto-analyze new issues (SQU-22) — *blocked by SQU-21*
+- [ ] @agent conversation workflow (SQU-23) — *blocked by SQU-21*
+- [ ] Enhanced implement — incorporate triage plan & review feedback (SQU-24) — *blocked by SQU-21, SQU-22*
+- [ ] Code review workflow — severity-based routing (SQU-25) — *blocked by SQU-21, SQU-24, SQU-26*
+
+### Backlog
+
+- [ ] Task decomposition agent (SQU-11)
+- [ ] End-to-end pipeline testing (SQU-12)
+- [ ] Production deployment (SQU-13)
+- [ ] CLAUDE.md files for target repos (SQU-14)
+- [ ] Triage worker for automatic issue analysis (SQU-16)
+
 ## Setup
 
 ### Prerequisites
@@ -195,20 +227,6 @@ docker compose logs -f token-refresh
 | `/health`              | GET    | None          | Health check               |
 | `/api/linear/webhook`  | POST   | HMAC-SHA256   | Linear webhook receiver    |
 | `/api/worker/complete` | POST   | `x-agent-key` | Worker completion callback |
-
-## Roadmap
-
-- [x] Webhook receiver with HMAC verification (SQU-8)
-- [x] Docker worker image with Claude Code (SQU-7)
-- [x] Worker spawner module (SQU-9)
-- [x] OAuth token refresh sidecar (SQU-15)
-- [x] Completion handler with GitHub PR creation (SQU-10)
-- [x] Multi-repo support via label-based repo mapping (SQU-17)
-- [ ] Task decomposition agent (SQU-11)
-- [ ] End-to-end pipeline testing (SQU-12)
-- [ ] Production deployment (SQU-13)
-- [ ] CLAUDE.md files for target repos (SQU-14)
-- [ ] Triage worker for automatic issue analysis (SQU-16)
 
 ## How Workers Execute Tasks
 
