@@ -92,6 +92,7 @@ Initial authentication requires running `claude` interactively once to complete 
 
 - [ ] Worker mode system — triage, respond, implement, review (SQU-21)
 - [ ] Create AI workflow label scheme (SQU-26)
+- [ ] Cloudflare Tunnel integration — zero-config deployment with docker compose (SQU-27)
 
 ### Up Next
 
