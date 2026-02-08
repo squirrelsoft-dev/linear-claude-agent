@@ -78,6 +78,7 @@ class WorkerSpawner {
       callbackUrl: `${config.CALLBACK_BASE_URL}/api/worker/complete`,
       agentKey: config.AGENT_KEY,
       anthropicApiKey: config.ANTHROPIC_API_KEY,
+        openaiApiKey: config.OPENAI_API_KEY,
       linearApiKey: config.LINEAR_API_KEY,
       workerTimeout: config.WORKER_TIMEOUT,
       workerMaxTurns: config.WORKER_MAX_TURNS,

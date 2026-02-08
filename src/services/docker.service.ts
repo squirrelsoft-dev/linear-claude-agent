@@ -13,7 +13,8 @@ export interface SpawnWorkerOptions {
   repoUrl: string;
   callbackUrl: string;
   agentKey: string;
-  anthropicApiKey: string;
+  anthropicApiKey: string | undefined;
+  openaiApiKey: string | undefined;
   linearApiKey: string;
   workerTimeout: number;
   workerMaxTurns: number;
