@@ -1,10 +1,8 @@
-import { LinearClient } from "@linear/sdk";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { parseRepoUrl, findExistingPr, createPr } from "./github.service.js";
 import type { WorkerCallbackPayload } from "../types/worker-callback.js";
-
-const linearClient = new LinearClient({ apiKey: config.LINEAR_API_KEY });
+import { linearClient } from "./linear-client.js";
 
 export async function handleCompleted(payload: WorkerCallbackPayload): Promise<void> {
   const { owner, repo } = parseRepoUrl(payload.repoUrl);

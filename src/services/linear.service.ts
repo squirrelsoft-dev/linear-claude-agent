@@ -1,11 +1,9 @@
-import { LinearClient } from "@linear/sdk";
 import type { LinearWebhookPayload } from "../types/linear-webhook.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { mastra } from "../mastra/index.js";
 import { resolveRepoUrl } from "./repo-label.service.js";
-
-const linearClient = new LinearClient({ apiKey: config.LINEAR_API_KEY });
+import { linearClient } from "./linear-client.js";
 
 export async function handleIssueTransitionToInProgress(
   payload: LinearWebhookPayload,
@@ -14,6 +12,11 @@ export async function handleIssueTransitionToInProgress(
 
   // Resolve repo URL from label group
   const repoUrl = await resolveRepoUrl(issueId);
+
+  // Fetch full issue details (shared across both branches)
+  const issue = await linearClient.issue(issueId);
+  const team = await issue.team;
+
   if (!repoUrl) {
     const groupName = config.REPO_LABEL_GROUP;
     await linearClient.createComment({
@@ -22,8 +25,6 @@ export async function handleIssueTransitionToInProgress(
     });
 
     // Move issue back to Todo
-    const issue = await linearClient.issue(issueId);
-    const team = await issue.team;
     if (team) {
       const states = await team.states();
       const todoState = states.nodes.find((s) => s.name === "Todo");
@@ -39,10 +40,7 @@ export async function handleIssueTransitionToInProgress(
     return;
   }
 
-  // Fetch full issue details from Linear API
-  const issue = await linearClient.issue(issueId);
   const labels = await issue.labels();
-  const team = await issue.team;
 
   const prompt = [
     `You are a PM agent orchestrating a coding task. A Linear issue has been moved to "In Progress".`,

@@ -1,16 +1,16 @@
-import { LinearClient } from "@linear/sdk";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
-
-const linearClient = new LinearClient({ apiKey: config.LINEAR_API_KEY });
+import { linearClient } from "./linear-client.js";
 
 let repoGroupId: string | null = null;
 
 export async function initializeRepoLabels(): Promise<void> {
   const groupName = config.REPO_LABEL_GROUP;
 
-  const labels = await linearClient.issueLabels({ first: 250 });
-  const group = labels.nodes.find((l) => l.isGroup && l.name === groupName);
+  const labels = await linearClient.issueLabels({
+    filter: { name: { eq: groupName }, isGroup: { eq: true } },
+  });
+  const group = labels.nodes[0];
 
   if (!group) {
     throw new Error(
@@ -33,18 +33,27 @@ export async function resolveRepoUrl(issueId: string): Promise<string | null> {
   const issue = await linearClient.issue(issueId);
   const labels = await issue.labels();
 
-  for (const label of labels.nodes) {
-    if (label.parentId === repoGroupId) {
-      if (!label.description) {
-        logger.warn(
-          { label: label.name, issueId },
-          "Repo label found but has no description (expected SSH URL)",
-        );
-        return null;
-      }
-      return label.description;
-    }
+  const repoLabels = labels.nodes.filter((l) => l.parentId === repoGroupId);
+
+  if (repoLabels.length === 0) {
+    return null;
   }
 
-  return null;
+  if (repoLabels.length > 1) {
+    logger.warn(
+      { issueId, labels: repoLabels.map((l) => l.name) },
+      "Multiple repo labels found on issue, using first",
+    );
+  }
+
+  const repoLabel = repoLabels[0];
+  if (!repoLabel.description) {
+    logger.warn(
+      { label: repoLabel.name, issueId },
+      "Repo label found but has no description (expected SSH URL)",
+    );
+    return null;
+  }
+
+  return repoLabel.description;
 }
