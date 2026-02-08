@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     ca-certificates \
     gnupg \
+    sudo \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -18,18 +19,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
-# Set up SSH directory (keys mounted at runtime)
-RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
+# Create non-root user (Claude Code refuses root + --dangerously-skip-permissions)
+RUN useradd -m -s /bin/bash worker \
+    && mkdir -p /home/worker/.ssh && chmod 700 /home/worker/.ssh \
+    && chown -R worker:worker /home/worker/.ssh
 
 # Configure git identity for worker commits
 RUN git config --global user.name "Claude Worker" \
     && git config --global user.email "claude-worker@noreply"
 
 # Set working directory
+RUN mkdir -p /workspace && chown worker:worker /workspace
 WORKDIR /workspace
 
 # Copy entrypoint script
 COPY worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
+RUN chmod 755 /usr/local/bin/worker-entrypoint.sh
 RUN chmod +x /usr/local/bin/worker-entrypoint.sh
+
+USER worker
 
 ENTRYPOINT ["worker-entrypoint.sh"]

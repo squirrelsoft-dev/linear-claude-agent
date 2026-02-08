@@ -93,10 +93,10 @@ export async function spawnWorkerContainer(
     ],
     HostConfig: {
       NetworkMode: opts.workerNetwork,
-      Binds: [
-        `${opts.hostSshPath}:/root/.ssh:ro`,
-        `${opts.hostClaudeAuthPath}:/root/.claude:ro`,
-      ],
+        Binds: [
+     `${opts.hostSshPath}:/home/worker/.ssh:ro`,
+     `${opts.hostClaudeAuthPath}:/home/worker/.claude:ro`,
+   ],
       AutoRemove: false,
     },
   });

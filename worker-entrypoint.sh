@@ -5,6 +5,7 @@ set -euo pipefail
 TIMEOUT="${TIMEOUT:-1800}"
 MAX_TURNS="${MAX_TURNS:-50}"
 TASK_PROMPT="${TASK_PROMPT:-${TASK_DESCRIPTION:-}}"
+SSH_DIR="/home/worker/.ssh"
 
 # ─── State ───────────────────────────────────────────────────────────────────
 CALLBACK_SENT=0
@@ -104,11 +105,17 @@ trap 'STATUS="failed"; ERROR_MSG="Received SIGINT"; exit 130' INT
 # Use GIT_SSH_COMMAND to handle read-only .ssh mounts cleanly
 export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
-if [ -f /root/.ssh/id_ed25519 ]; then
-    export GIT_SSH_COMMAND="$GIT_SSH_COMMAND -i /root/.ssh/id_ed25519"
-elif [ -f /root/.ssh/id_rsa ]; then
-    export GIT_SSH_COMMAND="$GIT_SSH_COMMAND -i /root/.ssh/id_rsa"
+if [ -f "$SSH_DIR/linear_worker_key" ]; then
+    export GIT_SSH_COMMAND="$GIT_SSH_COMMAND -i $SSH_DIR/linear_worker_key"
+elif [ -f "$SSH_DIR/id_ed25519" ]; then
+    export GIT_SSH_COMMAND="$GIT_SSH_COMMAND -i $SSH_DIR/id_ed25519"
+elif [ -f "$SSH_DIR/id_rsa" ]; then
+    export GIT_SSH_COMMAND="$GIT_SSH_COMMAND -i $SSH_DIR/id_rsa"
 fi
+
+# ─── Git config ──────────────────────────────────────────────────────────────
+git config --global user.name "Claude Worker"
+git config --global user.email "claude-worker@noreply"
 
 # ─── Clone repo ─────────────────────────────────────────────────────────────
 echo "Cloning $REPO_URL ..."
