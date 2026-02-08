@@ -97,7 +97,7 @@ export async function spawnWorkerContainer(
         `${opts.hostSshPath}:/root/.ssh:ro`,
         `${opts.hostClaudeAuthPath}:/root/.claude:ro`,
       ],
-      AutoRemove: true,
+      AutoRemove: false,
     },
   });
 
