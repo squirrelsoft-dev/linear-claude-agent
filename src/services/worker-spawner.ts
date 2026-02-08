@@ -35,6 +35,7 @@ export interface SpawnRequest {
   identifier: string;
   title: string;
   taskDescription: string;
+  repoUrl: string;
 }
 
 function buildBranchName(identifier: string, title: string): string {
@@ -73,7 +74,7 @@ class WorkerSpawner {
       taskDescription: request.taskDescription,
       branchName,
       baseBranch: config.BASE_BRANCH,
-      repoUrl: config.REPO_URL,
+      repoUrl: request.repoUrl,
       callbackUrl: `${config.CALLBACK_BASE_URL}/api/worker/complete`,
       agentKey: config.AGENT_KEY,
       anthropicApiKey: config.ANTHROPIC_API_KEY,

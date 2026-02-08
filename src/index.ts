@@ -8,8 +8,10 @@ import {
 import { linearWebhookRouter } from "./routes/linear-webhook.js";
 import { workerCompleteRouter } from "./routes/worker-complete.js";
 import { workerSpawner } from "./services/worker-spawner.js";
+import { initializeRepoLabels } from "./services/repo-label.service.js";
 
 await workerSpawner.initialize();
+await initializeRepoLabels();
 
 const app = express();
 

@@ -87,6 +87,29 @@ Initial authentication requires running `claude` interactively once to complete 
 - GitHub PAT with `repo` scope
 - Anthropic account with Claude Max subscription (for Claude Code)
 
+### Repo Label Group
+
+The PM agent uses Linear's label system to map issues to repos dynamically. A single agent instance can handle issues across multiple projects and repos.
+
+**1. Create a label group in Linear:**
+
+- Go to **Settings > Labels** in your Linear workspace
+- Create a new label group named **Repo** (or a custom name — set `REPO_LABEL_GROUP` env var)
+
+**2. Add a child label for each repo:**
+
+- Under the **Repo** group, create a child label for each repository
+- **Name**: the repo shortname (e.g. `linear-claude-agent`)
+- **Description**: the SSH URL (e.g. `git@github.com:squirrelsoft-dev/linear-claude-agent.git`)
+
+**3. Create project issue templates (recommended):**
+
+- In each Linear project, create an issue template that auto-applies the correct repo label
+- Set the template as the project's default template
+- New issues in the project will automatically get the repo label
+
+**Adding a new repo** requires only creating a child label and (optionally) a project template — no PM agent restart needed.
+
 ### Environment Variables
 
 Copy `.env.example` to `.env` and configure:
@@ -106,7 +129,7 @@ GITHUB_TOKEN=ghp_...
 AGENT_KEY=<generate-a-strong-secret>
 
 # Worker Config
-REPO_URL=git@github.com:your-org/your-repo.git
+REPO_LABEL_GROUP=Repo        # Linear label group name for repo mapping (default: Repo)
 WORKER_IMAGE=claude-worker:latest
 WORKER_NETWORK=pm-agent-net
 WORKER_TIMEOUT=1800
@@ -120,6 +143,10 @@ PORT=3000
 LOG_LEVEL=info
 PM_AGENT_MODEL=claude-sonnet-4-20250514
 ```
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `REPO_LABEL_GROUP` | No | `Repo` | Name of the Linear label group whose child labels map to repos. Each child label's description must contain the repo's SSH URL. |
 
 ### Initial OAuth Setup
 
@@ -182,6 +209,7 @@ docker compose logs -f token-refresh
 - [x] Worker spawner module (SQU-9)
 - [x] OAuth token refresh sidecar (SQU-15)
 - [x] Completion handler with GitHub PR creation (SQU-10)
+- [x] Multi-repo support via label-based repo mapping (SQU-17)
 - [ ] Task decomposition agent (SQU-11)
 - [ ] End-to-end pipeline testing (SQU-12)
 - [ ] Production deployment (SQU-13)
@@ -209,6 +237,32 @@ Workers have a configurable timeout (default 30 minutes) with a watchdog process
 - **Read-only credentials**: Workers mount the `claude-auth` volume as read-only
 - **SSH key isolation**: SSH keys are host bind-mounted read-only into coding workers only
 - **Docker socket**: Mounted on the PM agent container (required for spawning workers)
+
+## Troubleshooting
+
+### "No 'Repo' label group found in your Linear workspace"
+
+The PM agent failed to find the repo label group on startup. Fix:
+
+1. In Linear, go to **Settings > Labels**
+2. Create a label group named **Repo** (or whatever `REPO_LABEL_GROUP` is set to)
+3. Add at least one child label with the repo's SSH URL in its description
+4. Restart the PM agent
+
+### "No repo label found" comment on an issue
+
+The issue was moved to "In Progress" but doesn't have a label from the repo group. The agent posts a comment and moves the issue back to "Todo". Fix:
+
+1. Add the correct repo label (from the **Repo** group) to the issue
+2. Move the issue back to "In Progress"
+
+### "Repo label found but has no description"
+
+A repo label was found on the issue, but its description is empty. The description must contain the SSH URL. Fix:
+
+1. In Linear **Settings > Labels**, edit the child label under the repo group
+2. Set its description to the SSH URL (e.g. `git@github.com:org/repo.git`)
+3. Move the issue back to "In Progress"
 
 ## License
 

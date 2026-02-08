@@ -1,9 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { LinearClient } from "@linear/sdk";
-import { config } from "../../config.js";
-
-const linearClient = new LinearClient({ apiKey: config.LINEAR_API_KEY });
+import { linearClient } from "../../services/linear-client.js";
 
 export const fetchIssueTool = createTool({
   id: "fetch-issue",
