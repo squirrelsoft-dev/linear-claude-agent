@@ -95,7 +95,7 @@ export async function spawnWorkerContainer(
       NetworkMode: opts.workerNetwork,
         Binds: [
      `${opts.hostSshPath}:/home/worker/.ssh:ro`,
-     `${opts.hostClaudeAuthPath}:/home/worker/.claude:ro`,
+     `${opts.hostClaudeAuthPath}:/home/worker/.claude`,
    ],
       AutoRemove: false,
     },
