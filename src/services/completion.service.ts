@@ -24,19 +24,7 @@ export async function handleCompleted(payload: WorkerCallbackPayload): Promise<v
     logger.info({ prUrl, branch: payload.branch }, "PR created");
   }
 
-  // Update Linear issue status to "In Review"
-  const issue = await linearClient.issue(payload.issueId);
-  const team = await issue.team;
-  if (team) {
-    const states = await team.states();
-    const inReviewState = states.nodes.find((s) => s.name === "In Review");
-    if (inReviewState) {
-      await linearClient.updateIssue(payload.issueId, { stateId: inReviewState.id });
-      logger.info({ issueId: payload.issueId }, "Issue moved to In Review");
-    } else {
-      logger.warn({ issueId: payload.issueId }, "No 'In Review' state found");
-    }
-  }
+  await moveIssueToInReview(payload.issueId);
 
   // Post comment on Linear issue
   await linearClient.createComment({
@@ -63,6 +51,21 @@ export async function handleTimeout(issueId: string, identifier: string): Promis
   });
 
   await applyAgentFailedLabel(issueId);
+}
+
+export async function moveIssueToInReview(issueId: string): Promise<void> {
+  const issue = await linearClient.issue(issueId);
+  const team = await issue.team;
+  if (team) {
+    const states = await team.states();
+    const inReviewState = states.nodes.find((s) => s.name === "In Review");
+    if (inReviewState) {
+      await linearClient.updateIssue(issueId, { stateId: inReviewState.id });
+      logger.info({ issueId }, "Issue moved to In Review");
+    } else {
+      logger.warn({ issueId }, "No 'In Review' state found");
+    }
+  }
 }
 
 async function applyAgentFailedLabel(issueId: string): Promise<void> {

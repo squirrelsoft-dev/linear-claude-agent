@@ -125,11 +125,14 @@ if ! clone_output=$(git clone "$REPO_URL" /workspace/repo 2>&1); then
 fi
 cd /workspace/repo
 
-# ─── Create branch ──────────────────────────────────────────────────────────
-echo "Creating branch: $BRANCH_NAME"
-if ! checkout_output=$(git checkout -b "$BRANCH_NAME" 2>&1); then
-    ERROR_MSG="Failed to create branch '$BRANCH_NAME': ${checkout_output}"
-    exit 1
+# ─── Create or checkout branch ───────────────────────────────────────────────
+echo "Setting up branch: $BRANCH_NAME"
+if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+    echo "Branch exists remotely, checking out..."
+    git checkout "$BRANCH_NAME"
+else
+    echo "Creating new branch: $BRANCH_NAME"
+    git checkout -b "$BRANCH_NAME"
 fi
 
 # ─── Timeout watchdog ───────────────────────────────────────────────────────
