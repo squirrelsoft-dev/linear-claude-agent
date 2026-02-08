@@ -49,6 +49,8 @@ function buildBranchName(identifier: string, title: string): string {
 
 class WorkerSpawner {
   private workers = new Map<string, TrackedWorker>();
+  private recentlyCompleted = new Map<string, number>();
+  private static COOLDOWN_MS = 60_000; // ignore re-triggers for 60s after completion
 
   async initialize(): Promise<void> {
     await ensureNetwork(config.WORKER_NETWORK);
@@ -124,10 +126,25 @@ class WorkerSpawner {
     clearTimeout(tracked.timeoutId);
     this.workers.delete(issueId);
 
+    // Track completion time so we can ignore bounce-back webhooks
+    // (e.g. Linear GitHub integration auto-transitions issue back to In Progress)
+    this.recentlyCompleted.set(issueId, Date.now());
+    setTimeout(() => this.recentlyCompleted.delete(issueId), WorkerSpawner.COOLDOWN_MS);
+
     logger.info(
       { issueId, containerId: tracked.containerId, activeWorkers: this.workers.size },
       "Worker tracking cleared",
     );
+  }
+
+  isRecentlyCompleted(issueId: string): boolean {
+    const completedAt = this.recentlyCompleted.get(issueId);
+    if (!completedAt) return false;
+    if (Date.now() - completedAt > WorkerSpawner.COOLDOWN_MS) {
+      this.recentlyCompleted.delete(issueId);
+      return false;
+    }
+    return true;
   }
 
   private async killTimedOutWorker(issueId: string): Promise<void> {

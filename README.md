@@ -87,6 +87,10 @@ Initial authentication requires running `claude` interactively once to complete 
 - GitHub PAT with `repo` scope
 - Anthropic account with Claude Max subscription (for Claude Code)
 
+### Host Server Setup
+
+For detailed host-level configuration (SSH keys, Claude Code OAuth, volume permissions), see the **[Host Setup Guide](./docs/HOST-SETUP.md)**.
+
 ### Repo Label Group
 
 The PM agent uses Linear's label system to map issues to repos dynamically. A single agent instance can handle issues across multiple projects and repos.
@@ -150,19 +154,9 @@ PM_AGENT_MODEL=claude-sonnet-4-20250514
 
 ### Initial OAuth Setup
 
-1. Build the worker image: `docker build -t claude-worker .`
+Workers run as a non-root `worker` user (UID 1001). OAuth credentials are stored on a shared Docker volume and must be created by authenticating as that user.
 
-2. Run an interactive container with the auth volume mounted:
-
-   ```bash
-   docker run -it -v claude-auth:/root/.claude claude-worker claude
-   ```
-
-3. Copy the OAuth URL to your browser, authenticate with Anthropic
-
-4. Tokens are saved to the `claude-auth` volume
-
-5. The token refresh sidecar keeps them fresh from here
+See the **[Host Setup Guide — Claude Code OAuth](./docs/HOST-SETUP.md#2-claude-code-oauth-authentication)** for the full walkthrough.
 
 ### Running
 

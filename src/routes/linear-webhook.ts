@@ -2,6 +2,8 @@ import { Router } from "express";
 import { linearWebhookPayloadSchema } from "../types/linear-webhook.js";
 import { handleIssueTransitionToInProgress } from "../services/linear.service.js";
 import { logger } from "../utils/logger.js";
+import { workerSpawner } from "../services/worker-spawner.js";
+import { moveIssueToInReview } from "../services/completion.service.js";
 
 export const linearWebhookRouter = Router();
 
@@ -38,6 +40,20 @@ linearWebhookRouter.post("/", (req, res) => {
       { state: payload.data.state.name },
       "Ignoring non-In Progress state",
     );
+    return;
+  }
+
+  // Guard: ignore bounce-back from Linear's GitHub integration
+  // (auto-transitions issue to In Progress when PR is opened)
+  if (workerSpawner.isRecentlyCompleted(payload.data.id)) {
+    logger.info(
+      { issue: payload.data.identifier },
+      "Ignoring bounce-back: issue was recently completed",
+    );
+    // Re-set the issue to "In Review" since the GitHub integration overrode it
+    moveIssueToInReview(payload.data.id).catch((err) => {
+      logger.error({ err, issue: payload.data.identifier }, "Failed to re-set issue to In Review");
+    });
     return;
   }
 
