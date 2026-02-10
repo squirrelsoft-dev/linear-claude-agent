@@ -161,6 +161,7 @@ main() {
   create_label "ai-review-pending"    "#F2C94C" "Implementation complete, awaiting AI code review" "" "" > /dev/null
   create_label "ai-revision"          "#F2994A" "Review found issues, sent back for fixes"       "" "" > /dev/null
   create_label "needs-human-review"   "#EB5757" "Max AI review cycles reached, human review required" "" "" > /dev/null
+  create_label "agent-failed"         "#e74c3c" "Worker failed (timeout, error, etc.)"               "" "" > /dev/null
 
   echo "" >&2
 
@@ -209,6 +210,7 @@ main() {
   echo "Label flow:" >&2
   echo "  ai-work → ai-triaged → ai-implementing → ai-review-pending" >&2
   echo "  → ai-review:* → In Review (human) or ai-revision (fix loop)" >&2
+  echo "  On failure: ai-implementing → agent-failed" >&2
   echo "" >&2
 
   echo -e "✅ All labels created!" >&2
