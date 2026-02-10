@@ -2,7 +2,7 @@ FROM node:22-slim
 
 # Install Docker CLI (for spawning workers), Claude Code CLI, gh CLI, and jq
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends docker.io curl jq ca-certificates git openssh-client gosu && \
+    apt-get install -y --no-install-recommends docker.io curl jq ca-certificates git openssh-client && \
     ARCH="$(dpkg --print-architecture)" && \
     GH_VERSION="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r .tag_name | sed 's/^v//')" && \
     curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
@@ -35,13 +35,11 @@ RUN npm run build && npm prune --production
 COPY .claude .claude
 RUN mv .claude/_settings.json .claude/settings.json
 
-# Copy entrypoint (runs as root to fix docker GID, then drops to agent)
-COPY pm-agent-entrypoint.sh /usr/local/bin/pm-agent-entrypoint.sh
-RUN chmod +x /usr/local/bin/pm-agent-entrypoint.sh
-
 # Ensure agent user owns the app directory
 RUN chown -R agent:agent /app
 
 EXPOSE 3000
 
-ENTRYPOINT ["pm-agent-entrypoint.sh"]
+USER agent
+
+CMD ["node", "dist/index.js"]
