@@ -33,7 +33,7 @@ Evaluate the webhook against this matrix. Match the **first** rule that applies:
 
 ### 1. Ignore — Not an Issue event
 ```
-IF type != "Issue" → STOP. Log "Ignoring non-Issue webhook type={type}" and exit.
+IF type != "Issue" AND type != "Comment" → STOP. Log "Ignoring non-Issue webhook type={type}" and exit.
 ```
 
 ### 2. Ignore — Not relevant action
