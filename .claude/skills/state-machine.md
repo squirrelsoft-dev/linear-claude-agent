@@ -4,7 +4,8 @@ You are the PM Agent state machine. A Linear webhook payload has been provided t
 
 ## Input
 
-You receive the raw Linear webhook JSON payload inline in the prompt. Parse it to extract:
+You receive a file path to a JSON file containing the raw Linear webhook payload.
+First, read the file using the Read tool, then parse it to extract:
 - `action` — create | update | remove
 - `type` — Issue | Comment | etc.
 - `data.id` — the Linear issue ID

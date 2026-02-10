@@ -31,8 +31,9 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --production
 
-# Copy skills directory into the container
+# Copy skills and hooks into the container
 COPY .claude .claude
+RUN mv .claude/_settings.json .claude/settings.json
 
 # Ensure agent user owns the app directory
 RUN chown -R agent:agent /app

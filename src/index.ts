@@ -1,6 +1,11 @@
 import express from "express";
 import crypto from "crypto";
 import { execFile } from "child_process";
+import { mkdirSync, writeFileSync, unlinkSync } from "fs";
+import path from "path";
+
+const WORK_DIR = path.join("/app", ".work");
+mkdirSync(WORK_DIR, { recursive: true });
 
 const app = express();
 
@@ -120,8 +125,6 @@ app.post("/api/linear/webhook", (req, res) => {
     }
   }
 
-  const payloadJson = JSON.stringify(req.body);
-
   console.log(
     JSON.stringify({
       event: "webhook_received",
@@ -132,19 +135,35 @@ app.post("/api/linear/webhook", (req, res) => {
     }),
   );
 
+  // Write payload to file to avoid CLI argument size limits
+  const payloadFile = path.join(WORK_DIR, `webhook-${identifier}-${Date.now()}.json`);
+  writeFileSync(payloadFile, JSON.stringify(req.body));
+
   // Invoke Claude Code with state machine skill
-  // Pass payload inline — execFile doesn't use a shell so no injection risk
+  const smArgs = [
+    "-p",
+    `Read the Linear webhook payload from ${payloadFile} and follow .claude/skills/state-machine.md`,
+    "--dangerously-skip-permissions",
+    "--max-turns",
+    String(MAX_TURNS),
+  ];
+
+  console.log(
+    JSON.stringify({
+      event: "claude_invoke",
+      skill: "state-machine",
+      identifier,
+      args: ["claude", "-p", `<payload file: ${payloadFile}>`, ...smArgs.slice(2)],
+      timestamp: new Date().toISOString(),
+    }),
+  );
+
   execFile(
     "claude",
-    [
-      "-p",
-      `Here is the Linear webhook payload:\n\n${payloadJson}\n\nFollow .claude/skills/state-machine.md`,
-      "--dangerously-skip-permissions",
-      "--max-turns",
-      String(MAX_TURNS),
-    ],
+    smArgs,
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
+      try { unlinkSync(payloadFile); } catch {}
 
       if (error) {
         console.error(
@@ -209,21 +228,35 @@ app.post("/api/worker/complete", (req, res) => {
     }),
   );
 
-  const payloadJson = JSON.stringify(req.body);
+  // Write payload to file to avoid CLI argument size limits
+  const payloadFile = path.join(WORK_DIR, `callback-${identifier}-${Date.now()}.json`);
+  writeFileSync(payloadFile, JSON.stringify(req.body));
 
   // Invoke Claude Code with completion skill
-  // Pass payload inline — execFile doesn't use a shell so no injection risk
+  const compArgs = [
+    "-p",
+    `Read the worker callback payload from ${payloadFile} and follow .claude/skills/completion.md`,
+    "--dangerously-skip-permissions",
+    "--max-turns",
+    String(MAX_TURNS),
+  ];
+
+  console.log(
+    JSON.stringify({
+      event: "claude_invoke",
+      skill: "completion",
+      identifier,
+      args: ["claude", "-p", `<payload file: ${payloadFile}>`, ...compArgs.slice(2)],
+      timestamp: new Date().toISOString(),
+    }),
+  );
+
   execFile(
     "claude",
-    [
-      "-p",
-      `Here is the worker callback payload:\n\n${payloadJson}\n\nFollow .claude/skills/completion.md`,
-      "--dangerously-skip-permissions",
-      "--max-turns",
-      String(MAX_TURNS),
-    ],
+    compArgs,
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
+      try { unlinkSync(payloadFile); } catch {}
 
       if (error) {
         console.error(

@@ -37,6 +37,13 @@ COPY worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
 RUN chmod 755 /usr/local/bin/worker-entrypoint.sh
 RUN chmod +x /usr/local/bin/worker-entrypoint.sh
 
+# Install Claude Code hooks for live activity feed (user-level settings)
+COPY .claude/hooks /home/worker/.claude/hooks
+COPY .claude/_settings.json /home/worker/.claude/settings.json
+RUN sed -i 's|\$CLAUDE_PROJECT_DIR|/home/worker|g' /home/worker/.claude/settings.json \
+    && chmod +x /home/worker/.claude/hooks/*.sh \
+    && chown -R worker:worker /home/worker/.claude
+
 USER worker
 
 ENTRYPOINT ["worker-entrypoint.sh"]

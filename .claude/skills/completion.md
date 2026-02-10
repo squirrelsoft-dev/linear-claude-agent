@@ -4,7 +4,8 @@ You are handling a worker callback after a worker container has finished impleme
 
 ## Input
 
-You receive the worker callback JSON payload inline in the prompt. Parse it to extract:
+You receive a file path to a JSON file containing the worker callback payload.
+First, read the file using the Read tool, then parse it to extract:
 - `status` — `"completed"` or `"failed"`
 - `branch` — git branch name (e.g. `ai/squ-42-add-auth`)
 - `issueId` — Linear issue ID
