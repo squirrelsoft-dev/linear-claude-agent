@@ -161,7 +161,7 @@ app.post("/api/linear/webhook", (req, res) => {
   execFile(
     "claude",
     smArgs,
-    { cwd: "/app", timeout: 300_000 },
+    { cwd: "/app", timeout: 300_000, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (error) {
         console.error(
@@ -252,7 +252,7 @@ app.post("/api/worker/complete", (req, res) => {
   execFile(
     "claude",
     compArgs,
-    { cwd: "/app", timeout: 300_000 },
+    { cwd: "/app", timeout: 300_000, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (error) {
         console.error(
