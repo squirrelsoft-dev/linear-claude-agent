@@ -38,6 +38,20 @@ app.post("/webhook/linear", (req, res) => {
     return;
   }
 
+  // Replay attack protection
+  const timestampHeader = req.headers["linear-delivery-timestamp"] as string | undefined;
+  if (timestampHeader) {
+    const timestamp = Number(timestampHeader);
+    // 1 minute tolerance
+    if (Date.now() - timestamp > 60_000) {
+      console.error(
+        JSON.stringify({ event: "webhook_stale", identifier: req.body?.data?.identifier }),
+      );
+      res.status(401).json({ error: "Timestamp too old" });
+      return;
+    }
+  }
+
   const hmac = crypto.createHmac("sha256", LINEAR_WEBHOOK_SECRET!);
   hmac.update(rawBody);
   const expected = hmac.digest();
