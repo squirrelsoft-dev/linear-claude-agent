@@ -1,6 +1,7 @@
 .git
 *.md
+!.claude/skills/**/*.md
+!.claude/skills/references/**/*.md
 test-worker.sh
 .env*
 node_modules
-.claude
