@@ -15,10 +15,10 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-ok()   { echo -e "  ${GREEN}CREATED${NC}  $1" >&2; }
-skip() { echo -e "  ${YELLOW}SKIP${NC}     $1 (already exists)" >&2; }
-fail() { echo -e "  ${RED}FAIL${NC}     $1" >&2; }
-info() { echo -e "${CYAN}▸${NC} $1" >&2; }
+ok()   { printf '  %bCREATED%b  %s\n' "${GREEN}" "${NC}" "$1" >&2; }
+skip() { printf '  %bSKIP%b     %s (already exists)\n' "${YELLOW}" "${NC}" "$1" >&2; }
+fail() { printf '  %bFAIL%b     %s\n' "${RED}" "${NC}" "$1" >&2; }
+info() { printf '%b▸%b %s\n' "${CYAN}" "${NC}" "$1" >&2; }
 
 CREATED_COUNT=0
 SKIPPED_COUNT=0
