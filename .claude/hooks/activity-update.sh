@@ -1,7 +1,9 @@
 #!/bin/bash
+set -euo pipefail
+
 INPUT=$(cat)
 
-[ -z "$ACTIVITY_COMMENT_ID" ] || [ -z "$LINEAR_API_KEY" ] && exit 0
+[ -z "${ACTIVITY_COMMENT_ID:-}" ] || [ -z "${LINEAR_API_KEY:-}" ] && exit 0
 
 API="https://api.linear.app/graphql"
 TIMESTAMP=$(date +%H:%M:%S)
@@ -39,7 +41,7 @@ EXISTING=$(curl -s -X POST "$API" \
   | jq -r '.data.comment.body')
 
 # Append new line
-NEW_BODY="${EXISTING}\n${LINE}"
+NEW_BODY=$(printf '%s\n%s' "$EXISTING" "$LINE")
 
 curl -s -X POST "$API" \
   -H "Authorization: $LINEAR_API_KEY" \

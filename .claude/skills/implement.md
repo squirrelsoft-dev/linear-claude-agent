@@ -83,9 +83,11 @@ docker run -d \
   -e "BRANCH_NAME=${BRANCH_NAME}" \
   -e "TASK_PROMPT=${TASK_DESCRIPTION}" \
   -e "LINEAR_ISSUE_ID=${ISSUE_ID}" \
+  -e "ISSUE_ID=${ISSUE_ID}" \
   -e "ISSUE_IDENTIFIER=${IDENTIFIER}" \
   -e "ISSUE_TITLE=${TITLE}" \
   -e "LINEAR_API_KEY=${LINEAR_API_KEY}" \
+  -e "ACTIVITY_COMMENT_ID=${ACTIVITY_COMMENT_ID}" \
   -e "CALLBACK_URL=http://pm-agent:3000/api/worker/complete" \
   -e "AGENT_KEY=${AGENT_KEY}" \
   -e "TIMEOUT=${WORKER_TIMEOUT:-1800}" \
