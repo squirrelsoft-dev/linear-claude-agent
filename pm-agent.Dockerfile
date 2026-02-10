@@ -1,14 +1,12 @@
 FROM node:22-slim
 
 # Install Docker CLI (for spawning workers), Claude Code CLI, gh CLI, and jq
+ARG GH_VERSION=2.67.0
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends docker.io curl jq gpg && \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-      | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      > /etc/apt/sources.list.d/github-cli.list && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends gh && \
+    apt-get install -y --no-install-recommends docker.io curl jq && \
+    ARCH="$(dpkg --print-architecture)" && \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
+      | tar -xz -C /usr/local --strip-components=1 && \
     npm install -g @anthropic-ai/claude-code && \
     rm -rf /var/lib/apt/lists/*
 
