@@ -8,22 +8,40 @@ You are running inside the PM Agent container. You can query APIs but do not hav
 
 ## Input
 
-The state machine routed you here because a comment containing "@agent" was detected. You have:
-- `data.id` — issue ID (or comment ID, depending on webhook type)
-- The comment body containing the @agent mention
+The state machine routed you here because a comment containing "@agent" was detected.
+
+The webhook payload is a **Comment** event. The structure differs from Issue events:
+- `data.id` — the **comment** ID (not the issue ID)
+- `data.body` — the comment text containing the @agent mention
+- `data.user.name` — who mentioned the agent
+- `data.issue.id` — the **parent issue** ID
+- `data.issue.identifier` — the parent issue identifier (e.g. `SQU-42`)
+
+Use `data.issue.id` as the issue ID for API calls. The `ISSUE_ID` and `ISSUE_IDENTIFIER` env vars are also set correctly as fallbacks.
 
 ## Steps
 
-### 1. Fetch the Full Comment and Issue Context
+### 1. Extract Issue ID from Payload
+
+Read the webhook payload file. For Comment events, the parent issue ID is at `data.issue.id`:
+
+```
+issueId = payload.data.issue.id   // preferred — direct from payload
+         || $ISSUE_ID              // fallback — set by the webhook receiver
+```
+
+### 2. Fetch the Full Comment and Issue Context
+
+Use the resolved issue ID (not `data.id`, which is the comment ID):
 
 ```bash
 curl -s -X POST https://api.linear.app/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: $LINEAR_API_KEY" \
-  -d '{"query": "{ issue(id: \"ISSUE_ID\") { identifier title description state { name } labels { nodes { name } } comments(last: 20) { nodes { body createdAt user { name } } } } }"}'
+  -d '{"query": "{ issue(id: \"'$ISSUE_ID'\") { identifier title description state { name } labels { nodes { name } } comments(last: 20) { nodes { body createdAt user { name } } } } }"}'
 ```
 
-### 2. Parse the Request
+### 3. Parse the Request
 
 Extract the user's request from the @agent mention. Common patterns:
 - **Question about status**: "What's the status of this?"
@@ -31,7 +49,7 @@ Extract the user's request from the @agent mention. Common patterns:
 - **Instruction**: "Also handle the edge case where X"
 - **Code request**: "Please also add tests for Y"
 
-### 3. Handle Based on Request Type
+### 4. Handle Based on Request Type
 
 **Status inquiry:**
 - Check current state, labels, recent comments
@@ -48,7 +66,7 @@ Extract the user's request from the @agent mention. Common patterns:
 **General question:**
 - Answer based on available context from the issue and comments
 
-### 4. Post Response
+### 5. Post Response
 
 Read `.claude/skills/references/comment-formats.md` for the response template.
 
@@ -56,7 +74,7 @@ Read `.claude/skills/references/comment-formats.md` for the response template.
 curl -s -X POST https://api.linear.app/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: $LINEAR_API_KEY" \
-  -d '{"query": "mutation { commentCreate(input: { issueId: \"ISSUE_ID\", body: \"RESPONSE\" }) { success } }"}'
+  -d '{"query": "mutation { commentCreate(input: { issueId: \"'$ISSUE_ID'\", body: \"RESPONSE\" }) { success } }"}'
 ```
 
 ## Guidelines
