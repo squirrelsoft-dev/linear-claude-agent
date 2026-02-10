@@ -1,7 +1,7 @@
 import express from "express";
 import crypto from "crypto";
 import { execFile } from "child_process";
-import { mkdirSync, writeFileSync, unlinkSync } from "fs";
+import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
 const WORK_DIR = path.join("/app", ".work");
@@ -163,8 +163,6 @@ app.post("/api/linear/webhook", (req, res) => {
     smArgs,
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
-      try { unlinkSync(payloadFile); } catch {}
-
       if (error) {
         console.error(
           JSON.stringify({
@@ -256,8 +254,6 @@ app.post("/api/worker/complete", (req, res) => {
     compArgs,
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
-      try { unlinkSync(payloadFile); } catch {}
-
       if (error) {
         console.error(
           JSON.stringify({
