@@ -12,7 +12,6 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const LINEAR_WEBHOOK_SECRET = process.env.LINEAR_WEBHOOK_SECRET;
 const AGENT_KEY = process.env.AGENT_KEY;
-const MAX_TURNS = parseInt(process.env.MAX_TURNS || "50", 10);
 const BOUNCE_WINDOW_MS = 60_000; // ignore "In Progress" transitions within 60s of completion
 
 // Track recently completed issues to suppress bounce-back webhooks
@@ -179,13 +178,15 @@ app.post("/api/linear/webhook", (req, res) => {
   const payloadFile = path.join(WORK_DIR, `webhook-${identifier}-${Date.now()}.json`);
   writeFileSync(payloadFile, JSON.stringify(req.body));
 
-  // Invoke Claude Code with state machine skill
+  // Invoke Claude Code with state machine skill (lightweight router — spawns containers for actual work)
+  const SM_MAX_TURNS = 15;
+  const SM_TIMEOUT = 120_000; // 2 minutes — routing only
   const smArgs = [
     "-p",
     `Read the Linear webhook payload from ${payloadFile} and follow .claude/skills/state-machine.md`,
     "--dangerously-skip-permissions",
     "--max-turns",
-    String(MAX_TURNS),
+    String(SM_MAX_TURNS),
   ];
 
   console.log(
@@ -193,7 +194,6 @@ app.post("/api/linear/webhook", (req, res) => {
       event: "claude_invoke",
       skill: "state-machine",
       identifier,
-      args: ["claude", "-p", `<payload file: ${payloadFile}>`, ...smArgs.slice(2)],
       timestamp: new Date().toISOString(),
     }),
   );
@@ -203,7 +203,7 @@ app.post("/api/linear/webhook", (req, res) => {
   execFile(
     "claude",
     smArgs,
-    { cwd: "/app", timeout: 300_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
+    { cwd: "/app", timeout: SM_TIMEOUT, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (issueId) inFlight.delete(issueId);
 
@@ -217,7 +217,7 @@ app.post("/api/linear/webhook", (req, res) => {
             killed: err.killed ?? false,
             signal: err.signal ?? null,
             exitCode: err.code ?? null,
-            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after 300s)` : `Exited with code ${err.code}`,
+            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after ${SM_TIMEOUT / 1000}s)` : `Exited with code ${err.code}`,
             stdout: stdout?.slice(-3000),
             stderr: stderr?.slice(-3000),
             timestamp: new Date().toISOString(),
@@ -281,41 +281,33 @@ app.post("/api/worker/complete", (req, res) => {
   const payloadFile = path.join(WORK_DIR, `callback-${identifier}-${Date.now()}.json`);
   writeFileSync(payloadFile, JSON.stringify(req.body));
 
-  // Invoke Claude Code with completion skill
-  const compArgs = [
-    "-p",
-    `Read the worker callback payload from ${payloadFile} and follow .claude/skills/completion.md`,
-    "--dangerously-skip-permissions",
-    "--max-turns",
-    String(MAX_TURNS),
-  ];
+  // Spawn completion skill in isolated container
+  const spawnArgs = [".claude/scripts/spawn-skill.sh", "completion", payloadFile];
 
   console.log(
     JSON.stringify({
-      event: "claude_invoke",
+      event: "spawn_skill",
       skill: "completion",
       identifier,
-      args: ["claude", "-p", `<payload file: ${payloadFile}>`, ...compArgs.slice(2)],
       timestamp: new Date().toISOString(),
     }),
   );
 
   execFile(
-    "claude",
-    compArgs,
-    { cwd: "/app", timeout: 300_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
+    "bash",
+    spawnArgs,
+    { cwd: "/app", timeout: 30_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (error) {
         const err = error as Error & { killed?: boolean; signal?: string; code?: number };
         console.error(
           JSON.stringify({
-            event: "completion_error",
+            event: "completion_spawn_error",
             identifier,
             error: err.message,
             killed: err.killed ?? false,
             signal: err.signal ?? null,
             exitCode: err.code ?? null,
-            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after 300s)` : `Exited with code ${err.code}`,
             stdout: stdout?.slice(-3000),
             stderr: stderr?.slice(-3000),
             timestamp: new Date().toISOString(),
@@ -324,9 +316,9 @@ app.post("/api/worker/complete", (req, res) => {
       } else {
         console.log(
           JSON.stringify({
-            event: "completion_complete",
+            event: "completion_spawned",
             identifier,
-            output: stdout?.slice(-500),
+            output: stdout?.trim(),
             timestamp: new Date().toISOString(),
           }),
         );

@@ -31,9 +31,14 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --production
 
-# Copy skills and hooks into the container
+# Copy skills, hooks, and scripts into the container
 COPY .claude .claude
-RUN mv .claude/_settings.json .claude/settings.json
+RUN mv .claude/_settings.json .claude/settings.json \
+    && chmod +x .claude/scripts/*.sh
+
+# Skill container entrypoint (used when this image is spawned as a skill runner)
+COPY sm-entrypoint.sh /usr/local/bin/sm-entrypoint.sh
+RUN chmod +x /usr/local/bin/sm-entrypoint.sh
 
 # Ensure agent user owns the app directory
 RUN chown -R agent:agent /app

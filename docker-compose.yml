@@ -1,5 +1,6 @@
 services:
   pm-agent:
+    image: pm-agent:latest
     build:
       context: .
       dockerfile: pm-agent.Dockerfile
