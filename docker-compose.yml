@@ -11,8 +11,8 @@ services:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - claude-auth:/root/.claude
-      - ${HOST_SSH_PATH:-/root/.ssh}:/root/.ssh:ro
+      - claude-auth:/home/agent/.claude
+      - ${HOST_SSH_PATH:-/root/.ssh}:/home/agent/.ssh:ro
     networks:
       - pm-agent-net
     healthcheck:
