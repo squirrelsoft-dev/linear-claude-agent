@@ -160,7 +160,8 @@ app.post("/api/linear/webhook", (req, res) => {
             event: "state_machine_error",
             identifier,
             error: error.message,
-            stderr: stderr?.slice(-500),
+            stdout: stdout?.slice(-1000),
+            stderr: stderr?.slice(-1000),
           }),
         );
       } else {
@@ -245,7 +246,8 @@ app.post("/api/worker/complete", (req, res) => {
             event: "completion_error",
             identifier,
             error: error.message,
-            stderr: stderr?.slice(-500),
+            stdout: stdout?.slice(-1000),
+            stderr: stderr?.slice(-1000),
           }),
         );
       } else {
