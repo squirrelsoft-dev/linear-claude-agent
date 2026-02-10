@@ -5,6 +5,8 @@ services:
       dockerfile: pm-agent.Dockerfile
     container_name: pm-agent
     restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
     env_file:
       - .env
     volumes:

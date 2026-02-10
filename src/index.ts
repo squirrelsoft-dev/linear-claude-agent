@@ -1,16 +1,22 @@
 import express from "express";
 import crypto from "crypto";
 import fs from "fs";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 
 const app = express();
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const LINEAR_WEBHOOK_SECRET = process.env.LINEAR_WEBHOOK_SECRET;
+const AGENT_KEY = process.env.AGENT_KEY;
 const MAX_TURNS = parseInt(process.env.MAX_TURNS || "50", 10);
 
 if (!LINEAR_WEBHOOK_SECRET) {
   console.error("FATAL: LINEAR_WEBHOOK_SECRET is required");
+  process.exit(1);
+}
+
+if (!AGENT_KEY) {
+  console.error("FATAL: AGENT_KEY is required");
   process.exit(1);
 }
 
@@ -87,8 +93,15 @@ app.post("/webhook/linear", (req, res) => {
   );
 
   // Invoke Claude Code with state machine skill
-  exec(
-    `claude -p "/state-machine $(cat ${payloadFile})" --dangerously-skip-permissions --max-turns ${MAX_TURNS}`,
+  execFile(
+    "claude",
+    [
+      "-p",
+      `Read the webhook payload from ${payloadFile} and follow .claude/skills/state-machine.md`,
+      "--dangerously-skip-permissions",
+      "--max-turns",
+      String(MAX_TURNS),
+    ],
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
       // Clean up temp file
@@ -111,6 +124,82 @@ app.post("/webhook/linear", (req, res) => {
         console.log(
           JSON.stringify({
             event: "state_machine_complete",
+            identifier,
+            output: stdout?.slice(-500),
+          }),
+        );
+      }
+    },
+  );
+});
+
+app.post("/api/worker/complete", (req, res) => {
+  // Validate agent key
+  const agentKey = req.headers["x-agent-key"] as string | undefined;
+  if (!agentKey || agentKey !== AGENT_KEY) {
+    res.status(401).json({ error: "Invalid or missing agent key" });
+    return;
+  }
+
+  // Validate required fields
+  const { status, branch, issueId } = req.body || {};
+  if (!status || !branch || !issueId) {
+    res.status(400).json({ error: "Missing required fields: status, branch, issueId" });
+    return;
+  }
+
+  // Respond immediately
+  res.json({ received: true });
+
+  const identifier = req.body?.issueIdentifier || "unknown";
+
+  console.log(
+    JSON.stringify({
+      event: "callback_received",
+      status,
+      branch,
+      issueId,
+      identifier,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+
+  // Write callback payload to temp file
+  const payloadFile = `/tmp/callback-${Date.now()}.json`;
+  fs.writeFileSync(payloadFile, JSON.stringify(req.body));
+
+  // Invoke Claude Code with completion skill
+  execFile(
+    "claude",
+    [
+      "-p",
+      `Read the worker callback payload from ${payloadFile} and follow .claude/skills/completion.md`,
+      "--dangerously-skip-permissions",
+      "--max-turns",
+      String(MAX_TURNS),
+    ],
+    { cwd: "/app", timeout: 300_000 },
+    (error, stdout, stderr) => {
+      // Clean up temp file
+      try {
+        fs.unlinkSync(payloadFile);
+      } catch {
+        // ignore cleanup errors
+      }
+
+      if (error) {
+        console.error(
+          JSON.stringify({
+            event: "completion_error",
+            identifier,
+            error: error.message,
+            stderr: stderr?.slice(-500),
+          }),
+        );
+      } else {
+        console.log(
+          JSON.stringify({
+            event: "completion_complete",
             identifier,
             output: stdout?.slice(-500),
           }),
