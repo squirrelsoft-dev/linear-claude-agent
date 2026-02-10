@@ -134,15 +134,27 @@ app.post("/api/linear/webhook", (req, res) => {
 
   // Invoke Claude Code with state machine skill
   // Pass payload inline — execFile doesn't use a shell so no injection risk
+  const smArgs = [
+    "-p",
+    `Here is the Linear webhook payload:\n\n${payloadJson}\n\nFollow .claude/skills/state-machine.md`,
+    "--dangerously-skip-permissions",
+    "--max-turns",
+    String(MAX_TURNS),
+  ];
+
+  console.log(
+    JSON.stringify({
+      event: "claude_invoke",
+      skill: "state-machine",
+      identifier,
+      args: ["claude", "-p", `<payload ${payloadJson.length} chars>`, ...smArgs.slice(2)],
+      timestamp: new Date().toISOString(),
+    }),
+  );
+
   execFile(
     "claude",
-    [
-      "-p",
-      `Here is the Linear webhook payload:\n\n${payloadJson}\n\nFollow .claude/skills/state-machine.md`,
-      "--dangerously-skip-permissions",
-      "--max-turns",
-      String(MAX_TURNS),
-    ],
+    smArgs,
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
 
@@ -213,15 +225,27 @@ app.post("/api/worker/complete", (req, res) => {
 
   // Invoke Claude Code with completion skill
   // Pass payload inline — execFile doesn't use a shell so no injection risk
+  const compArgs = [
+    "-p",
+    `Here is the worker callback payload:\n\n${payloadJson}\n\nFollow .claude/skills/completion.md`,
+    "--dangerously-skip-permissions",
+    "--max-turns",
+    String(MAX_TURNS),
+  ];
+
+  console.log(
+    JSON.stringify({
+      event: "claude_invoke",
+      skill: "completion",
+      identifier,
+      args: ["claude", "-p", `<payload ${payloadJson.length} chars>`, ...compArgs.slice(2)],
+      timestamp: new Date().toISOString(),
+    }),
+  );
+
   execFile(
     "claude",
-    [
-      "-p",
-      `Here is the worker callback payload:\n\n${payloadJson}\n\nFollow .claude/skills/completion.md`,
-      "--dangerously-skip-permissions",
-      "--max-turns",
-      String(MAX_TURNS),
-    ],
+    compArgs,
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
 
