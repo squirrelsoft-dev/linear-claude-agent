@@ -204,8 +204,14 @@ main() {
     exit 1
   fi
 
-  local total=$((CREATED_COUNT + SKIPPED_COUNT))
-  echo -e "${GREEN}All $total labels are in place.${NC}" >&2
+  # ── Flow diagram ──────────────────────────────────────────────────────────
+  echo "" >&2
+  echo "Label flow:" >&2
+  echo "  ai-work → ai-triaged → ai-implementing → ai-review-pending" >&2
+  echo "  → ai-review:* → In Review (human) or ai-revision (fix loop)" >&2
+  echo "" >&2
+
+  echo -e "✅ All labels created!" >&2
   echo "" >&2
 }
 
