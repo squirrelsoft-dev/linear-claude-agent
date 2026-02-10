@@ -1,6 +1,6 @@
 import express from "express";
 import crypto from "crypto";
-import { execFile } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
@@ -27,6 +27,23 @@ if (!LINEAR_WEBHOOK_SECRET) {
 if (!AGENT_KEY) {
   console.error("FATAL: AGENT_KEY is required");
   process.exit(1);
+}
+
+// Verify Docker socket is accessible at startup (required for spawning workers)
+try {
+  execFileSync("docker", ["info"], { timeout: 10_000, stdio: "pipe" });
+  console.log(JSON.stringify({ event: "docker_check", status: "ok", timestamp: new Date().toISOString() }));
+} catch (e) {
+  console.error(
+    JSON.stringify({
+      event: "docker_check",
+      status: "failed",
+      error: (e as Error).message,
+      hint: "Set DOCKER_GID in .env to match: stat -c '%g' /var/run/docker.sock on host",
+      timestamp: new Date().toISOString(),
+    }),
+  );
+  // Don't exit — triage/review skills work without Docker, only implement needs it
 }
 
 // Log all incoming requests
@@ -161,16 +178,22 @@ app.post("/api/linear/webhook", (req, res) => {
   execFile(
     "claude",
     smArgs,
-    { cwd: "/app", timeout: 300_000, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
+    { cwd: "/app", timeout: 300_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (error) {
+        const err = error as Error & { killed?: boolean; signal?: string; code?: number };
         console.error(
           JSON.stringify({
             event: "state_machine_error",
             identifier,
-            error: error.message,
-            stdout: stdout?.slice(-1000),
-            stderr: stderr?.slice(-1000),
+            error: err.message,
+            killed: err.killed ?? false,
+            signal: err.signal ?? null,
+            exitCode: err.code ?? null,
+            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after 300s)` : `Exited with code ${err.code}`,
+            stdout: stdout?.slice(-3000),
+            stderr: stderr?.slice(-3000),
+            timestamp: new Date().toISOString(),
           }),
         );
       } else {
@@ -179,6 +202,7 @@ app.post("/api/linear/webhook", (req, res) => {
             event: "state_machine_complete",
             identifier,
             output: stdout?.slice(-500),
+            timestamp: new Date().toISOString(),
           }),
         );
       }
@@ -252,16 +276,22 @@ app.post("/api/worker/complete", (req, res) => {
   execFile(
     "claude",
     compArgs,
-    { cwd: "/app", timeout: 300_000, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
+    { cwd: "/app", timeout: 300_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (error) {
+        const err = error as Error & { killed?: boolean; signal?: string; code?: number };
         console.error(
           JSON.stringify({
             event: "completion_error",
             identifier,
-            error: error.message,
-            stdout: stdout?.slice(-1000),
-            stderr: stderr?.slice(-1000),
+            error: err.message,
+            killed: err.killed ?? false,
+            signal: err.signal ?? null,
+            exitCode: err.code ?? null,
+            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after 300s)` : `Exited with code ${err.code}`,
+            stdout: stdout?.slice(-3000),
+            stderr: stderr?.slice(-3000),
+            timestamp: new Date().toISOString(),
           }),
         );
       } else {
@@ -270,6 +300,7 @@ app.post("/api/worker/complete", (req, res) => {
             event: "completion_complete",
             identifier,
             output: stdout?.slice(-500),
+            timestamp: new Date().toISOString(),
           }),
         );
       }
