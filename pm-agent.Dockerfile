@@ -2,7 +2,7 @@ FROM node:22-slim
 
 # Install Docker CLI (for spawning workers), Claude Code CLI, gh CLI, and jq
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends docker.io curl jq && \
+    apt-get install -y --no-install-recommends docker.io curl jq ca-certificates && \
     ARCH="$(dpkg --print-architecture)" && \
     GH_VERSION="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r .tag_name | sed 's/^v//')" && \
     curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
