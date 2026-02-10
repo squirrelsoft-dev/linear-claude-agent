@@ -7,6 +7,14 @@ MAX_TURNS="${MAX_TURNS:-50}"
 TASK_PROMPT="${TASK_PROMPT:-${TASK_DESCRIPTION:-}}"
 SSH_DIR="/home/worker/.ssh"
 
+# ─── Restore hooks (claude-auth volume mount shadows ~/.claude) ──────────────
+if [ -d "/opt/claude-hooks" ]; then
+  mkdir -p /home/worker/.claude/hooks
+  cp -f /opt/claude-hooks/settings.json /home/worker/.claude/settings.json
+  cp -f /opt/claude-hooks/hooks/*.sh /home/worker/.claude/hooks/
+  chmod +x /home/worker/.claude/hooks/*.sh
+fi
+
 # ─── State ───────────────────────────────────────────────────────────────────
 CALLBACK_SENT=0
 CLAUDE_PID=""

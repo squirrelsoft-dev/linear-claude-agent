@@ -1,17 +1,19 @@
 #!/bin/bash
+set -euo pipefail
+
 INPUT=$(cat)
 
-[ -z "$ACTIVITY_COMMENT_ID" ] || [ -z "$LINEAR_API_KEY" ] && exit 0
+[ -z "${ACTIVITY_COMMENT_ID:-}" ] || [ -z "${LINEAR_API_KEY:-}" ] && exit 0
 
 API="https://api.linear.app/graphql"
 TIMESTAMP=$(date +%H:%M:%S)
 
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
-ERROR=$(echo "$INPUT" | jq -r '.error' | head -1 | cut -c1-100)
+ERROR=$(echo "$INPUT" | jq -r '.error // empty' | head -1 | cut -c1-100)
 
 LINE="\`[${TIMESTAMP}]\` ❌ ${TOOL_NAME} failed: \`${ERROR}\`"
 
-# Fetch + append (same pattern as activity-update.sh)
+# Fetch + append
 EXISTING=$(curl -s -X POST "$API" \
   -H "Authorization: $LINEAR_API_KEY" \
   -H "Content-Type: application/json" \
@@ -19,7 +21,7 @@ EXISTING=$(curl -s -X POST "$API" \
     '{query: "query($id: String!) { comment(id: $id) { body } }", variables: {id: $id}}')" \
   | jq -r '.data.comment.body')
 
-NEW_BODY="${EXISTING}\n${LINE}"
+NEW_BODY=$(printf '%s\n%s' "$EXISTING" "$LINE")
 
 curl -s -X POST "$API" \
   -H "Authorization: $LINEAR_API_KEY" \
