@@ -19,6 +19,12 @@ const BOUNCE_WINDOW_MS = 60_000; // ignore "In Progress" transitions within 60s 
 // (e.g. GitHub integration auto-moving issues back to In Progress after PR creation)
 const recentlyCompleted = new Map<string, number>();
 
+// Track in-flight Claude sessions per issue to prevent webhook feedback loops.
+// When Claude modifies an issue (adds labels, posts comments, changes state),
+// Linear fires new webhooks — without dedup, we'd spawn parallel sessions for
+// the same issue that race and duplicate work.
+const inFlight = new Map<string, { identifier: string; startedAt: number }>();
+
 if (!LINEAR_WEBHOOK_SECRET) {
   console.error("FATAL: LINEAR_WEBHOOK_SECRET is required");
   process.exit(1);
@@ -46,16 +52,18 @@ try {
   // Don't exit — triage/review skills work without Docker, only implement needs it
 }
 
-// Log all incoming requests
+// Log incoming requests (skip health checks to reduce noise)
 app.use((req, _res, next) => {
-  console.log(
-    JSON.stringify({
-      event: "request_received",
-      method: req.method,
-      path: req.path,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  if (req.path !== "/health") {
+    console.log(
+      JSON.stringify({
+        event: "request_received",
+        method: req.method,
+        path: req.path,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  }
   next();
 });
 
@@ -142,6 +150,21 @@ app.post("/api/linear/webhook", (req, res) => {
     }
   }
 
+  // Dedup: skip if a Claude session is already running for this issue
+  if (issueId && inFlight.has(issueId)) {
+    const existing = inFlight.get(issueId)!;
+    console.log(
+      JSON.stringify({
+        event: "webhook_deduplicated",
+        identifier,
+        issueId,
+        reason: `Session already in-flight since ${new Date(existing.startedAt).toISOString()}`,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    return;
+  }
+
   console.log(
     JSON.stringify({
       event: "webhook_received",
@@ -175,11 +198,15 @@ app.post("/api/linear/webhook", (req, res) => {
     }),
   );
 
+  if (issueId) inFlight.set(issueId, { identifier, startedAt: Date.now() });
+
   execFile(
     "claude",
     smArgs,
     { cwd: "/app", timeout: 300_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
+      if (issueId) inFlight.delete(issueId);
+
       if (error) {
         const err = error as Error & { killed?: boolean; signal?: string; code?: number };
         console.error(
