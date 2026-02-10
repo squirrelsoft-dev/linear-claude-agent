@@ -9,6 +9,11 @@ const PORT = parseInt(process.env.PORT || "3000", 10);
 const LINEAR_WEBHOOK_SECRET = process.env.LINEAR_WEBHOOK_SECRET;
 const AGENT_KEY = process.env.AGENT_KEY;
 const MAX_TURNS = parseInt(process.env.MAX_TURNS || "50", 10);
+const BOUNCE_WINDOW_MS = 60_000; // ignore "In Progress" transitions within 60s of completion
+
+// Track recently completed issues to suppress bounce-back webhooks
+// (e.g. GitHub integration auto-moving issues back to In Progress after PR creation)
+const recentlyCompleted = new Map<string, number>();
 
 if (!LINEAR_WEBHOOK_SECRET) {
   console.error("FATAL: LINEAR_WEBHOOK_SECRET is required");
@@ -74,13 +79,35 @@ app.post("/webhook/linear", (req, res) => {
   // Respond immediately so Linear doesn't retry
   res.json({ received: true });
 
-  // Write payload to temp file to avoid shell escaping issues
-  const payloadFile = `/tmp/webhook-${Date.now()}.json`;
-  fs.writeFileSync(payloadFile, JSON.stringify(req.body));
-
   const action = req.body?.action || "unknown";
   const type = req.body?.type || "unknown";
   const identifier = req.body?.data?.identifier || "unknown";
+  const issueId = req.body?.data?.id;
+  const stateName = req.body?.data?.state?.name;
+  const hadStateChange = !!req.body?.updatedFrom?.stateId;
+
+  // Bounce-back suppression: if this issue was recently completed and is now
+  // transitioning to "In Progress", ignore it — this is a side-effect of
+  // integrations (e.g. GitHub) auto-moving the issue after PR creation.
+  if (issueId && hadStateChange && stateName === "In Progress") {
+    const completedAt = recentlyCompleted.get(issueId);
+    if (completedAt && Date.now() - completedAt < BOUNCE_WINDOW_MS) {
+      console.log(
+        JSON.stringify({
+          event: "webhook_bounce_suppressed",
+          identifier,
+          issueId,
+          completedAgoMs: Date.now() - completedAt,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+      return;
+    }
+  }
+
+  // Write payload to temp file to avoid shell escaping issues
+  const payloadFile = `/tmp/webhook-${Date.now()}.json`;
+  fs.writeFileSync(payloadFile, JSON.stringify(req.body));
 
   console.log(
     JSON.stringify({
@@ -150,6 +177,15 @@ app.post("/api/worker/complete", (req, res) => {
 
   // Respond immediately
   res.json({ received: true });
+
+  // Track completed issues for bounce-back suppression
+  if (status === "completed") {
+    recentlyCompleted.set(issueId, Date.now());
+    // Clean up old entries to prevent memory leaks
+    for (const [id, ts] of recentlyCompleted) {
+      if (Date.now() - ts > BOUNCE_WINDOW_MS) recentlyCompleted.delete(id);
+    }
+  }
 
   const identifier = req.body?.issueIdentifier || "unknown";
 
