@@ -132,10 +132,10 @@ app.post("/api/linear/webhook", (req, res) => {
 
   // For Comment webhooks, the issue is nested under data.issue
   const issueId = type === "Comment"
-    ? req.body?.data?.issue?.id || rawIssueId
+    ? req.body?.data?.issue?.id
     : rawIssueId;
   const identifier = type === "Comment"
-    ? req.body?.data?.issue?.identifier || rawIdentifier
+    ? req.body?.data?.issue?.identifier
     : rawIdentifier;
 
   // Skip Comment webhooks that don't mention @agent
