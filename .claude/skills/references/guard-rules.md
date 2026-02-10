@@ -5,7 +5,7 @@ These rules MUST be checked before taking certain actions. They prevent runaway 
 ## WIP Limit
 
 - **Rule:** Never exceed `MAX_WIP` concurrent workers (default: 3)
-- **Check:** `docker ps --filter "name=worker-" --format "{{.Names}}" | wc -l`
+- **Check:** `docker ps --filter "name=skill-implement" --format "{{.Names}}" | wc -l`
 - **Action if exceeded:** Post comment on issue, do NOT spawn worker, leave issue in current state
 
 ## Review Cycle Limit
@@ -22,15 +22,15 @@ These rules MUST be checked before taking certain actions. They prevent runaway 
 
 ## Duplicate Worker Prevention
 
-- **Rule:** Never spawn two workers for the same issue
-- **Check:** `docker ps --filter "name=worker-${IDENTIFIER,,}-" --format "{{.Names}}" | wc -l`
+- **Rule:** Never have two implement containers running for the same issue
+- **Check:** `docker ps --filter "name=skill-implement-${IDENTIFIER,,}-" --format "{{.Names}}" | wc -l` (count > 1 means a duplicate, since self is included)
 - **Action if detected:** Post comment noting existing worker, do NOT spawn another
 
 ## Worker Timeout
 
 - **Rule:** Workers have a maximum runtime of `WORKER_TIMEOUT` seconds (default: 1800 = 30min)
-- **Enforcement:** The worker-entrypoint.sh handles this internally via a watchdog process
-- **Note:** The PM Agent doesn't need to enforce this — the worker self-terminates
+- **Enforcement:** The `sm-entrypoint.sh` wraps the Claude invocation with `timeout`
+- **Note:** The PM Agent doesn't need to enforce this — the skill container self-terminates
 
 ## Rate Limiting
 

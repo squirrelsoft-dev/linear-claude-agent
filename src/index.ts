@@ -1,6 +1,6 @@
 import express from "express";
 import crypto from "crypto";
-import { execFile } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
@@ -12,12 +12,17 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const LINEAR_WEBHOOK_SECRET = process.env.LINEAR_WEBHOOK_SECRET;
 const AGENT_KEY = process.env.AGENT_KEY;
-const MAX_TURNS = parseInt(process.env.MAX_TURNS || "50", 10);
 const BOUNCE_WINDOW_MS = 60_000; // ignore "In Progress" transitions within 60s of completion
 
 // Track recently completed issues to suppress bounce-back webhooks
 // (e.g. GitHub integration auto-moving issues back to In Progress after PR creation)
 const recentlyCompleted = new Map<string, number>();
+
+// Track in-flight Claude sessions per issue to prevent webhook feedback loops.
+// When Claude modifies an issue (adds labels, posts comments, changes state),
+// Linear fires new webhooks — without dedup, we'd spawn parallel sessions for
+// the same issue that race and duplicate work.
+const inFlight = new Map<string, { identifier: string; startedAt: number }>();
 
 if (!LINEAR_WEBHOOK_SECRET) {
   console.error("FATAL: LINEAR_WEBHOOK_SECRET is required");
@@ -29,16 +34,35 @@ if (!AGENT_KEY) {
   process.exit(1);
 }
 
-// Log all incoming requests
-app.use((req, _res, next) => {
-  console.log(
+// Verify Docker socket is accessible at startup (required for spawning workers)
+try {
+  execFileSync("docker", ["info"], { timeout: 10_000, stdio: "pipe" });
+  console.log(JSON.stringify({ event: "docker_check", status: "ok", timestamp: new Date().toISOString() }));
+} catch (e) {
+  console.error(
     JSON.stringify({
-      event: "request_received",
-      method: req.method,
-      path: req.path,
+      event: "docker_check",
+      status: "failed",
+      error: (e as Error).message,
+      hint: "Set DOCKER_GID in .env to match: stat -c '%g' /var/run/docker.sock on host",
       timestamp: new Date().toISOString(),
     }),
   );
+  // Don't exit — triage/review skills work without Docker, only implement needs it
+}
+
+// Log incoming requests (skip health checks to reduce noise)
+app.use((req, _res, next) => {
+  if (req.path !== "/health") {
+    console.log(
+      JSON.stringify({
+        event: "request_received",
+        method: req.method,
+        path: req.path,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  }
   next();
 });
 
@@ -125,6 +149,21 @@ app.post("/api/linear/webhook", (req, res) => {
     }
   }
 
+  // Dedup: skip if a Claude session is already running for this issue
+  if (issueId && inFlight.has(issueId)) {
+    const existing = inFlight.get(issueId)!;
+    console.log(
+      JSON.stringify({
+        event: "webhook_deduplicated",
+        identifier,
+        issueId,
+        reason: `Session already in-flight since ${new Date(existing.startedAt).toISOString()}`,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    return;
+  }
+
   console.log(
     JSON.stringify({
       event: "webhook_received",
@@ -139,13 +178,15 @@ app.post("/api/linear/webhook", (req, res) => {
   const payloadFile = path.join(WORK_DIR, `webhook-${identifier}-${Date.now()}.json`);
   writeFileSync(payloadFile, JSON.stringify(req.body));
 
-  // Invoke Claude Code with state machine skill
+  // Invoke Claude Code with state machine skill (lightweight router — spawns containers for actual work)
+  const SM_MAX_TURNS = 15;
+  const SM_TIMEOUT = 120_000; // 2 minutes — routing only
   const smArgs = [
     "-p",
     `Read the Linear webhook payload from ${payloadFile} and follow .claude/skills/state-machine.md`,
     "--dangerously-skip-permissions",
     "--max-turns",
-    String(MAX_TURNS),
+    String(SM_MAX_TURNS),
   ];
 
   console.log(
@@ -153,24 +194,33 @@ app.post("/api/linear/webhook", (req, res) => {
       event: "claude_invoke",
       skill: "state-machine",
       identifier,
-      args: ["claude", "-p", `<payload file: ${payloadFile}>`, ...smArgs.slice(2)],
       timestamp: new Date().toISOString(),
     }),
   );
 
+  if (issueId) inFlight.set(issueId, { identifier, startedAt: Date.now() });
+
   execFile(
     "claude",
     smArgs,
-    { cwd: "/app", timeout: 300_000, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
+    { cwd: "/app", timeout: SM_TIMEOUT, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
+      if (issueId) inFlight.delete(issueId);
+
       if (error) {
+        const err = error as Error & { killed?: boolean; signal?: string; code?: number };
         console.error(
           JSON.stringify({
             event: "state_machine_error",
             identifier,
-            error: error.message,
-            stdout: stdout?.slice(-1000),
-            stderr: stderr?.slice(-1000),
+            error: err.message,
+            killed: err.killed ?? false,
+            signal: err.signal ?? null,
+            exitCode: err.code ?? null,
+            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after ${SM_TIMEOUT / 1000}s)` : `Exited with code ${err.code}`,
+            stdout: stdout?.slice(-3000),
+            stderr: stderr?.slice(-3000),
+            timestamp: new Date().toISOString(),
           }),
         );
       } else {
@@ -179,6 +229,7 @@ app.post("/api/linear/webhook", (req, res) => {
             event: "state_machine_complete",
             identifier,
             output: stdout?.slice(-500),
+            timestamp: new Date().toISOString(),
           }),
         );
       }
@@ -230,46 +281,45 @@ app.post("/api/worker/complete", (req, res) => {
   const payloadFile = path.join(WORK_DIR, `callback-${identifier}-${Date.now()}.json`);
   writeFileSync(payloadFile, JSON.stringify(req.body));
 
-  // Invoke Claude Code with completion skill
-  const compArgs = [
-    "-p",
-    `Read the worker callback payload from ${payloadFile} and follow .claude/skills/completion.md`,
-    "--dangerously-skip-permissions",
-    "--max-turns",
-    String(MAX_TURNS),
-  ];
+  // Spawn completion skill in isolated container
+  const spawnArgs = [".claude/scripts/spawn-skill.sh", "completion", payloadFile];
 
   console.log(
     JSON.stringify({
-      event: "claude_invoke",
+      event: "spawn_skill",
       skill: "completion",
       identifier,
-      args: ["claude", "-p", `<payload file: ${payloadFile}>`, ...compArgs.slice(2)],
       timestamp: new Date().toISOString(),
     }),
   );
 
   execFile(
-    "claude",
-    compArgs,
-    { cwd: "/app", timeout: 300_000, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
+    "bash",
+    spawnArgs,
+    { cwd: "/app", timeout: 30_000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
     (error, stdout, stderr) => {
       if (error) {
+        const err = error as Error & { killed?: boolean; signal?: string; code?: number };
         console.error(
           JSON.stringify({
-            event: "completion_error",
+            event: "completion_spawn_error",
             identifier,
-            error: error.message,
-            stdout: stdout?.slice(-1000),
-            stderr: stderr?.slice(-1000),
+            error: err.message,
+            killed: err.killed ?? false,
+            signal: err.signal ?? null,
+            exitCode: err.code ?? null,
+            stdout: stdout?.slice(-3000),
+            stderr: stderr?.slice(-3000),
+            timestamp: new Date().toISOString(),
           }),
         );
       } else {
         console.log(
           JSON.stringify({
-            event: "completion_complete",
+            event: "completion_spawned",
             identifier,
-            output: stdout?.slice(-500),
+            output: stdout?.trim(),
+            timestamp: new Date().toISOString(),
           }),
         );
       }

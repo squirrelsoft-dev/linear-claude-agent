@@ -12,7 +12,7 @@ You are running inside the PM Agent container. This skill is called after a work
 
 ```bash
 # Count currently running workers
-ACTIVE=$(docker ps --filter "name=worker-" --format "{{.Names}}" | wc -l)
+ACTIVE=$(docker ps --filter "name=skill-implement" --format "{{.Names}}" | wc -l)
 MAX_WIP="${MAX_WIP:-3}"
 
 if [ "$ACTIVE" -ge "$MAX_WIP" ]; then

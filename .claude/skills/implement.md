@@ -1,10 +1,10 @@
 # Implement Skill
 
-You are spawning a worker container to implement a Linear issue. The issue has been moved to "In Progress" and needs code written.
+You are implementing a Linear issue directly. The issue has been moved to "In Progress" and needs code written.
 
 ## Context
 
-You are running inside the PM Agent container. You have access to Docker (via socket) to spawn worker containers. You do NOT write code yourself — you spawn a worker that does.
+You are running inside an isolated skill container with worker-level settings. The entrypoint has configured SSH, git identity, and an EXIT trap that sends a failure callback if you don't send a success callback. You do the full workflow: clone, implement, commit, push, callback.
 
 ## Input
 
@@ -50,8 +50,8 @@ No repo label found — add a label from the **Repo** group and move back to In 
 ### 4. Check WIP Limits
 
 ```bash
-# Count running worker containers
-docker ps --filter "name=worker-" --format "{{.Names}}" | wc -l
+# Count running implement skill containers (self is included in the count)
+docker ps --filter "name=skill-implement" --format "{{.Names}}" | wc -l
 ```
 
 If count >= `MAX_WIP` (default 3), post a comment and STOP:
@@ -73,45 +73,83 @@ Example: `ai/squ-42-add-user-authentication`
 
 Add the `ai-implementing` label to the issue (same pattern as triage — find label ID, get existing labels, append, update).
 
-### 7. Spawn Worker Container
+### 7. Write Marker Files
+
+Write marker files so the entrypoint EXIT trap can include context in the failure callback:
 
 ```bash
-docker run -d \
-  --name "worker-${IDENTIFIER,,}-$(date +%s)" \
-  --network "${WORKER_NETWORK:-pm-agent-net}" \
-  -e "REPO_URL=${REPO_URL}" \
-  -e "BRANCH_NAME=${BRANCH_NAME}" \
-  -e "TASK_PROMPT=${TASK_DESCRIPTION}" \
-  -e "LINEAR_ISSUE_ID=${ISSUE_ID}" \
-  -e "ISSUE_ID=${ISSUE_ID}" \
-  -e "ISSUE_IDENTIFIER=${IDENTIFIER}" \
-  -e "ISSUE_TITLE=${TITLE}" \
-  -e "LINEAR_API_KEY=${LINEAR_API_KEY}" \
-  -e "ACTIVITY_COMMENT_ID=${ACTIVITY_COMMENT_ID}" \
-  -e "CALLBACK_URL=http://pm-agent:3000/api/worker/complete" \
-  -e "AGENT_KEY=${AGENT_KEY}" \
-  -e "TIMEOUT=${WORKER_TIMEOUT:-1800}" \
-  -e "MAX_TURNS=${WORKER_MAX_TURNS:-50}" \
-  -v "${HOST_SSH_PATH:-/root/.ssh}:/home/worker/.ssh:ro" \
-  -v "${HOST_CLAUDE_AUTH_PATH:-claude-auth}:/home/worker/.claude" \
-  "${WORKER_IMAGE:-claude-worker:latest}"
+echo "BRANCH_NAME" > /tmp/.branch_name
+echo "REPO_URL" > /tmp/.repo_url
 ```
 
-The `TASK_DESCRIPTION` should be a clear, actionable prompt constructed from the issue title, description, and any triage analysis.
+Replace BRANCH_NAME and REPO_URL with the actual values resolved above.
 
-### 8. Post Status Comment
+### 8. Clone Repository
+
+```bash
+git clone "$REPO_URL" /tmp/workspace/repo
+cd /tmp/workspace/repo
+```
+
+### 9. Create or Checkout Branch
+
+```bash
+if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+  git checkout "$BRANCH_NAME"
+else
+  git checkout -b "$BRANCH_NAME"
+fi
+```
+
+### 10. Implement the Changes
+
+Read the codebase, understand the existing code, and make the changes described in the issue. This is the core implementation step — use your best judgment about what changes to make.
+
+Focus on:
+- Understanding the existing code before making changes
+- Making minimal, focused changes that address the issue
+- Following existing code style and patterns
+- Writing clean, correct code
+
+### 11. Stage, Commit, and Push
+
+```bash
+git add -A
+git commit -m "feat: {identifier} — {concise description}
+
+{issue title}
+Issue: {issue_id}"
+git push -u origin "$BRANCH_NAME"
+```
+
+If there are no changes to commit, this is a failure — the entrypoint callback trap will handle it.
+
+### 12. Send Success Callback
+
+```bash
+curl -sf -X POST "$CALLBACK_URL" \
+  -H "Content-Type: application/json" \
+  -H "x-agent-key: ${AGENT_KEY:-}" \
+  -d '{"status":"completed","branch":"BRANCH_NAME","error":"","issueId":"ISSUE_ID","issueIdentifier":"IDENTIFIER","issueTitle":"TITLE","repoUrl":"REPO_URL"}' \
+  --max-time 10
+touch /tmp/.callback_sent
+```
+
+The `touch /tmp/.callback_sent` tells the entrypoint EXIT trap NOT to send a failure callback.
+
+### 13. Post Status Comment
 
 ```bash
 curl -s -X POST https://api.linear.app/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: $LINEAR_API_KEY" \
-  -d '{"query": "mutation { commentCreate(input: { issueId: \"ISSUE_ID\", body: \"🤖 Worker spawned.\\n\\n**Branch:** `BRANCH_NAME`\\n**Container:** `CONTAINER_ID`\" }) { success } }"}'
+  -d '{"query": "mutation { commentCreate(input: { issueId: \"ISSUE_ID\", body: \"🤖 Implementation complete.\\n\\n**Branch:** `BRANCH_NAME`\" }) { success } }"}'
 ```
 
 ## Error Handling
 
-If Docker spawn fails:
-1. Post an error comment on the issue
-2. Remove `ai-implementing` label
-3. Apply `agent-failed` label (create it if it doesn't exist)
-4. Move issue back to Todo
+On failure at any step, simply exit (or let the error propagate). The entrypoint EXIT trap will automatically:
+1. Detect that `/tmp/.callback_sent` doesn't exist
+2. Read branch name and repo URL from marker files (if they were written)
+3. Send a failure callback to the PM agent
+4. The PM agent's completion pipeline will handle label cleanup and error comments
