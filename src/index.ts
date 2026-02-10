@@ -25,6 +25,19 @@ if (!AGENT_KEY) {
   process.exit(1);
 }
 
+// Log all incoming requests
+app.use((req, _res, next) => {
+  console.log(
+    JSON.stringify({
+      event: "request_received",
+      method: req.method,
+      path: req.path,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+  next();
+});
+
 // Capture raw body for signature verification
 app.use(
   express.json({
@@ -38,6 +51,7 @@ app.post("/webhook/linear", (req, res) => {
   const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody;
 
   if (!rawBody) {
+    console.error(JSON.stringify({ event: "webhook_rejected", reason: "no_body" }));
     res.status(400).json({ error: "No body" });
     return;
   }
@@ -45,6 +59,7 @@ app.post("/webhook/linear", (req, res) => {
   // Verify webhook signature
   const signature = req.headers["linear-signature"] as string | undefined;
   if (!signature) {
+    console.error(JSON.stringify({ event: "webhook_rejected", reason: "missing_signature" }));
     res.status(401).json({ error: "Missing signature" });
     return;
   }
@@ -72,6 +87,7 @@ app.post("/webhook/linear", (req, res) => {
     expected.length !== provided.length ||
     !crypto.timingSafeEqual(expected, provided)
   ) {
+    console.error(JSON.stringify({ event: "webhook_rejected", reason: "invalid_signature" }));
     res.status(401).json({ error: "Invalid signature" });
     return;
   }
