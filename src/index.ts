@@ -1,6 +1,5 @@
 import express from "express";
 import crypto from "crypto";
-import fs from "fs";
 import { execFile } from "child_process";
 
 const app = express();
@@ -121,9 +120,7 @@ app.post("/api/linear/webhook", (req, res) => {
     }
   }
 
-  // Write payload to temp file to avoid shell escaping issues
-  const payloadFile = `/tmp/webhook-${Date.now()}.json`;
-  fs.writeFileSync(payloadFile, JSON.stringify(req.body));
+  const payloadJson = JSON.stringify(req.body);
 
   console.log(
     JSON.stringify({
@@ -136,23 +133,18 @@ app.post("/api/linear/webhook", (req, res) => {
   );
 
   // Invoke Claude Code with state machine skill
+  // Pass payload inline — execFile doesn't use a shell so no injection risk
   execFile(
     "claude",
     [
       "-p",
-      `Read the webhook payload from ${payloadFile} and follow .claude/skills/state-machine.md`,
+      `Here is the Linear webhook payload:\n\n${payloadJson}\n\nFollow .claude/skills/state-machine.md`,
       "--dangerously-skip-permissions",
       "--max-turns",
       String(MAX_TURNS),
     ],
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
-      // Clean up temp file
-      try {
-        fs.unlinkSync(payloadFile);
-      } catch {
-        // ignore cleanup errors
-      }
 
       if (error) {
         console.error(
@@ -217,28 +209,21 @@ app.post("/api/worker/complete", (req, res) => {
     }),
   );
 
-  // Write callback payload to temp file
-  const payloadFile = `/tmp/callback-${Date.now()}.json`;
-  fs.writeFileSync(payloadFile, JSON.stringify(req.body));
+  const payloadJson = JSON.stringify(req.body);
 
   // Invoke Claude Code with completion skill
+  // Pass payload inline — execFile doesn't use a shell so no injection risk
   execFile(
     "claude",
     [
       "-p",
-      `Read the worker callback payload from ${payloadFile} and follow .claude/skills/completion.md`,
+      `Here is the worker callback payload:\n\n${payloadJson}\n\nFollow .claude/skills/completion.md`,
       "--dangerously-skip-permissions",
       "--max-turns",
       String(MAX_TURNS),
     ],
     { cwd: "/app", timeout: 300_000 },
     (error, stdout, stderr) => {
-      // Clean up temp file
-      try {
-        fs.unlinkSync(payloadFile);
-      } catch {
-        // ignore cleanup errors
-      }
 
       if (error) {
         console.error(
