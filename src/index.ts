@@ -47,7 +47,7 @@ app.use(
   }),
 );
 
-app.post("/webhook/linear", (req, res) => {
+app.post("/api/linear/webhook", (req, res) => {
   const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody;
 
   if (!rawBody) {
