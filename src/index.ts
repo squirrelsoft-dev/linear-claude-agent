@@ -125,10 +125,23 @@ app.post("/api/linear/webhook", (req, res) => {
 
   const action = req.body?.action || "unknown";
   const type = req.body?.type || "unknown";
-  const identifier = req.body?.data?.identifier || "unknown";
-  const issueId = req.body?.data?.id;
+  const rawIdentifier = req.body?.data?.identifier || "unknown";
+  const rawIssueId = req.body?.data?.id;
   const stateName = req.body?.data?.state?.name;
   const hadStateChange = !!req.body?.updatedFrom?.stateId;
+
+  // For Comment webhooks, the issue is nested under data.issue
+  const issueId = type === "Comment"
+    ? req.body?.data?.issue?.id
+    : rawIssueId;
+  const identifier = type === "Comment"
+    ? req.body?.data?.issue?.identifier
+    : rawIdentifier;
+
+  // Skip Comment webhooks that don't mention @agent
+  if (type === "Comment" && !req.body?.data?.body?.includes("@agent")) {
+    return;
+  }
 
   // Bounce-back suppression: if this issue was recently completed and is now
   // transitioning to "In Progress", ignore it — this is a side-effect of
@@ -149,8 +162,9 @@ app.post("/api/linear/webhook", (req, res) => {
     }
   }
 
-  // Dedup: skip if a Claude session is already running for this issue
-  if (issueId && inFlight.has(issueId)) {
+  // Dedup: skip if a Claude session is already running for this issue.
+  // Comment events bypass dedup — users can @agent while a worker is in-flight.
+  if (type !== "Comment" && issueId && inFlight.has(issueId)) {
     const existing = inFlight.get(issueId)!;
     console.log(
       JSON.stringify({
