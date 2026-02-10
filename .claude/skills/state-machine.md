@@ -42,50 +42,55 @@ IF type != "Issue" AND type != "Comment" → STOP. Log "Ignoring non-Issue webho
 IF action == "remove" → STOP. Log "Ignoring remove action" and exit.
 ```
 
-### 3. Comment webhook — @agent mention
+### 3. Ignore — Failed issue
+```
+IF labels include "agent-failed" → STOP. Log "Ignoring webhook for failed issue identifier={identifier}" and exit.
+```
+
+### 4. Comment webhook — @agent mention
 ```
 IF type == "Comment" AND data.body contains "@agent"
   → Read and follow .claude/skills/respond.md
 ```
 
-### 4. Issue created with `ai-work` label
+### 5. Issue created with `ai-work` label
 ```
 IF action == "create" AND labels include "ai-work"
   → Read and follow .claude/skills/triage.md
 ```
 
-### 5. Issue updated — label added: `ai-work` (triage request)
+### 6. Issue updated — label added: `ai-work` (triage request)
 ```
 IF action == "update" AND labels include "ai-work" AND labels do NOT include "ai-triaged"
   → Read and follow .claude/skills/triage.md
 ```
 
-### 6. Issue updated — state changed to "In Progress"
+### 7. Issue updated — state changed to "In Progress"
 ```
 IF action == "update" AND data.state.name == "In Progress" AND updatedFrom.stateId exists
   → Check for bounce-back (see guard rules below)
   → Read and follow .claude/skills/implement.md
 ```
 
-### 7. Issue updated — label added: `ai-revision`
+### 8. Issue updated — label added: `ai-revision`
 ```
 IF action == "update" AND labels include "ai-revision"
   → Read and follow .claude/skills/implement-revision.md
 ```
 
-### 8. Issue updated — label added: `ai-review-pending`
+### 9. Issue updated — label added: `ai-review-pending`
 ```
 IF action == "update" AND labels include "ai-review-pending"
   → Read and follow .claude/skills/review.md
 ```
 
-### 9. Issue updated — state changed to "Done"
+### 10. Issue updated — state changed to "Done"
 ```
 IF action == "update" AND data.state.name == "Done" AND updatedFrom.stateId exists
   → Read and follow .claude/skills/cleanup.md
 ```
 
-### 10. Catch-all
+### 11. Catch-all
 ```
 Log "No matching rule for action={action} type={type} state={data.state.name} labels={labels}" and exit.
 ```
