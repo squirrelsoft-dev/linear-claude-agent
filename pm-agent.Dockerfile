@@ -26,10 +26,7 @@ WORKDIR /app
 
 # Initialize a git repo so Claude Code resolves CLAUDE_PROJECT_DIR=/app
 # and hook commands using "$CLAUDE_PROJECT_DIR/.claude/hooks/*.sh" find the right path.
-RUN git init \
-    && git config user.name "PM Agent" \
-    && git config user.email "pm-agent@noreply" \
-    && git commit --allow-empty -m "init"
+RUN git init && git commit --allow-empty -m "init"
 
 COPY package.json package-lock.json ./
 RUN npm ci
