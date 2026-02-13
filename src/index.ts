@@ -1,6 +1,6 @@
 import express from "express";
 import crypto from "crypto";
-import { execFile, execFileSync } from "child_process";
+import { execFile, execFileSync, spawn } from "child_process";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
@@ -49,6 +49,23 @@ try {
     }),
   );
   // Don't exit — triage/review skills work without Docker, only implement needs it
+}
+
+// Verify Claude Code CLI is functional at startup
+try {
+  const ver = execFileSync("claude", ["--version"], { timeout: 15_000, stdio: "pipe", cwd: "/app" }).toString().trim();
+  console.log(JSON.stringify({ event: "claude_check", status: "ok", version: ver, timestamp: new Date().toISOString() }));
+} catch (e) {
+  const err = e as Error & { stderr?: Buffer };
+  console.error(
+    JSON.stringify({
+      event: "claude_check",
+      status: "failed",
+      error: (e as Error).message,
+      stderr: err.stderr?.toString().slice(-1000),
+      timestamp: new Date().toISOString(),
+    }),
+  );
 }
 
 // Log incoming requests (skip health checks to reduce noise)
@@ -214,41 +231,65 @@ app.post("/api/linear/webhook", (req, res) => {
 
   if (issueId) inFlight.set(issueId, { identifier, startedAt: Date.now() });
 
-  execFile(
-    "claude",
-    smArgs,
-    { cwd: "/app", timeout: SM_TIMEOUT, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier } },
-    (error, stdout, stderr) => {
-      if (issueId) inFlight.delete(issueId);
+  const smProc = spawn("claude", smArgs, {
+    cwd: "/app",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, ISSUE_ID: issueId, ISSUE_IDENTIFIER: identifier },
+  });
 
-      if (error) {
-        const err = error as Error & { killed?: boolean; signal?: string; code?: number };
-        console.error(
-          JSON.stringify({
-            event: "state_machine_error",
-            identifier,
-            error: err.message,
-            killed: err.killed ?? false,
-            signal: err.signal ?? null,
-            exitCode: err.code ?? null,
-            reason: err.killed ? `Process killed (signal=${err.signal}, likely timeout after ${SM_TIMEOUT / 1000}s)` : `Exited with code ${err.code}`,
-            stdout: stdout?.slice(-3000),
-            stderr: stderr?.slice(-3000),
-            timestamp: new Date().toISOString(),
-          }),
-        );
-      } else {
-        console.log(
-          JSON.stringify({
-            event: "state_machine_complete",
-            identifier,
-            output: stdout?.slice(-500),
-            timestamp: new Date().toISOString(),
-          }),
-        );
-      }
-    },
-  );
+  let stdoutBuf = "";
+  let stderrBuf = "";
+
+  smProc.stdout.on("data", (chunk: Buffer) => {
+    const text = chunk.toString();
+    stdoutBuf += text;
+    // Stream stdout lines to logs in real-time
+    for (const line of text.split("\n").filter(Boolean)) {
+      console.log(JSON.stringify({ event: "claude_stdout", identifier, line, timestamp: new Date().toISOString() }));
+    }
+  });
+
+  smProc.stderr.on("data", (chunk: Buffer) => {
+    const text = chunk.toString();
+    stderrBuf += text;
+    // Stream stderr lines to logs in real-time
+    for (const line of text.split("\n").filter(Boolean)) {
+      console.log(JSON.stringify({ event: "claude_stderr", identifier, line, timestamp: new Date().toISOString() }));
+    }
+  });
+
+  const killTimer = setTimeout(() => {
+    smProc.kill("SIGTERM");
+    console.error(JSON.stringify({ event: "claude_timeout", identifier, timeoutMs: SM_TIMEOUT, timestamp: new Date().toISOString() }));
+  }, SM_TIMEOUT);
+
+  smProc.on("close", (code, signal) => {
+    clearTimeout(killTimer);
+    if (issueId) inFlight.delete(issueId);
+
+    if (code !== 0) {
+      console.error(
+        JSON.stringify({
+          event: "state_machine_error",
+          identifier,
+          exitCode: code,
+          signal,
+          stdout: stdoutBuf.slice(-3000),
+          stderr: stderrBuf.slice(-3000),
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    } else {
+      console.log(
+        JSON.stringify({
+          event: "state_machine_complete",
+          identifier,
+          output: stdoutBuf.slice(-500),
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    }
+  });
 });
 
 app.post("/api/worker/complete", (req, res) => {
