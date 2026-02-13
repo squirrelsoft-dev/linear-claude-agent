@@ -24,6 +24,10 @@ RUN git config --global user.name "PM Agent" \
 
 WORKDIR /app
 
+# Initialize a git repo so Claude Code resolves CLAUDE_PROJECT_DIR=/app
+# and hook commands using "$CLAUDE_PROJECT_DIR/.claude/hooks/*.sh" find the right path.
+RUN git init && git commit --allow-empty -m "init"
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -34,7 +38,8 @@ RUN npm run build && npm prune --production
 # Copy skills, hooks, and scripts into the container
 COPY .claude .claude
 RUN mv .claude/_settings.json .claude/settings.json \
-    && chmod +x .claude/scripts/*.sh
+    && rm -f .claude/settings.local.json \
+    && chmod +x .claude/scripts/*.sh .claude/hooks/*.sh
 
 # Skill container entrypoint (used when this image is spawned as a skill runner)
 COPY sm-entrypoint.sh /usr/local/bin/sm-entrypoint.sh
